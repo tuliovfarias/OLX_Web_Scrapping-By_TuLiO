@@ -8,6 +8,11 @@ import locale
 # import time
 import traceback
 
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import json
+
 class BuscaProduto():
     def __init__(self,texto_pesquisa, max_paginas=2, cidade='', estado='', ordenar_por=''):
         if type(texto_pesquisa) is not list: texto_pesquisa=[texto_pesquisa] # para aceitar uma string ou lista de strings
@@ -19,6 +24,9 @@ class BuscaProduto():
         self.lista_produtos = []
 
     def OLX(self, filtrar_titulo = False):
+        self.site='OLX'
+        self.url_list=[]
+
         count_errors=0
         dict_cidade = {'bh': 'belo-horizonte-e-regiao', 'sp': 'sao-paulo-e-regiao'}
         dict_ordenar_por = {'data' : '&sf=1'}
@@ -38,10 +46,12 @@ class BuscaProduto():
         for pesquisa in self.texto_pesquisa:
             print(f'\n******* PESQUISANDO "{pesquisa}"')         
             query_pesquisa = quote(pesquisa)            
-            for x in range(1, self.max_paginas+1):
+            for pagina in range(1, self.max_paginas+1):
                 url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + query_pesquisa + self.ordenar_por
-                if x != 1:
-                    url = url+'&o='+str(x)
+                if pagina != 1:
+                    url = url+'&o='+str(pagina)
+                else:
+                    self.url_list.append(url)
                 page = requests.get(url, headers=headers)
                 # soup = BeautifulSoup(page.content, "html.parser")
                 soup = BeautifulSoup(page.content, "lxml")
@@ -49,7 +59,7 @@ class BuscaProduto():
                 # print(produtos)
                 if len(produtos)== 0:
                     break
-                print(f'\tPÁGINA {str(x)} - {url}')
+                print(f'\tPÁGINA {str(pagina)} - {url}')
                 for produto in produtos:
                     try:
                         # print(produto)
@@ -127,20 +137,58 @@ class BuscaProduto():
 
         return self.df_lista_produtos
 
-    def FiltrarPreco(self, preco_max):
+    def FiltrarPreco(self, preco_max, email = False):
+        self.preco_max=preco_max
         if self.lista_produtos:
-            return self.df_lista_produtos.query(f'preco <= {preco_max}').reset_index(drop=True)
+            self.df_lista_produtos = self.df_lista_produtos.query(f'preco <= {preco_max}').reset_index(drop=True)
+            if email:
+                self.EnviarEmail()
+            return self.df_lista_produtos
         else:
             return self.df_lista_produtos
 
+    #@staticmethod
+    def EnviarEmail(self):
+        with open('cred.json') as cred:
+            dados = json.load(cred)
+            host = dados["e-mail"]["host"]
+            port = dados["e-mail"]["port"]
+            user = dados["e-mail"]["user"]
+            password = dados["e-mail"]["password"]
+            email_de = dados["e-mail"]["from"]
+            email_para = dados["e-mail"]["to"]
+        server = smtplib.SMTP_SSL(host, port)
+        server.login(user, password)
+        email_msg = MIMEMultipart()
+        email_msg['From'] = email_de
+        email_msg['To'] = email_para
+        email_msg['Subject'] = f"Busca em {self.site} {'(%s)' % ', '.join(self.texto_pesquisa)}"
+        html = f"""\
+                <html>
+                <head></head>
+                <body>
+                    <p>URLs buscadas:<br>{'<br>'.join(self.url_list)}</p>
+                    <p>Mostrando produtos abaixo de R$ {self.preco_max},00</p>
+                    <p>{self.df_lista_produtos.to_html()}</p>
+                </body>
+                </html>
+                """
+        email_msg.attach(MIMEText(html, 'html'))
+
+        server.sendmail(email_de,
+                        email_para,
+                        email_msg.as_string(),
+                        )
+        server.quit()
+        
 
 if __name__ == '__main__':
     print(f'Iniciando busca...')
-    busca = BuscaProduto(['sr315a', 'sr315 A'],cidade='BH', max_paginas=10)
+    busca = BuscaProduto(['sr315a', 'sr315 A'], max_paginas=10)
     # busca = BuscaProduto(['ui24r', 'ui24'], cidade='bh', max_paginas=10)
     lista_produtos = busca.OLX(filtrar_titulo=True)
     # print(lista_produtos)
-    filtro_preco = busca.FiltrarPreco(preco_max = 1450)
+    filtro_preco = busca.FiltrarPreco(preco_max = 1450, email= True)
     if not filtro_preco.empty:
         print(filtro_preco)
     else:

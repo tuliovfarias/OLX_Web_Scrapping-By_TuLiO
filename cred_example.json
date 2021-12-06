@@ -1,0 +1,10 @@
+{
+    "e-mail": {
+        "host": "smtp.gmail.com",
+        "port": "465",
+        "user": "seu_email@gmail.com",
+        "password":"codigo_gerado_em: https://security.google.com/settings/security/apppasswords",
+        "from": "seu_email@gmail.com",
+        "to": "dest_e-mail@gmail.com"
+    }
+}
