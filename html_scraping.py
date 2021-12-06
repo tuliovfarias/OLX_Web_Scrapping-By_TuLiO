@@ -1,16 +1,12 @@
 import pandas as pd
-import numpy as np
 import requests
 from bs4 import BeautifulSoup
-import json
-from difflib import SequenceMatcher
-from selenium import webdriver
-import time
-from datetime import date
+from datetime import date, timedelta, datetime
 import re
 from urllib.parse import quote
-import traceback
-
+import locale
+# import time
+# import traceback
 
 class BuscaProduto():
     def __init__(self,texto_pesquisa, max_paginas=2, cidade='', estado='', ordenar_por=''):
@@ -45,15 +41,15 @@ class BuscaProduto():
                 url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + query_pesquisa + self.ordenar_por
                 if x != 1:
                     url = url+'&o='+str(x)
-                print(f'\tPÁGINA {str(x)} - {url}')
                 page = requests.get(url, headers=headers)
                 # soup = BeautifulSoup(page.content, "html.parser")
                 soup = BeautifulSoup(page.content, "lxml")
                 produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY"]})
                 # print(produtos)
-                print(f'\t\tEncontrou {len(produtos)} resultados')
                 if len(produtos)== 0:
                     break
+                print(f'\tPÁGINA {str(x)} - {url}')
+                print(f'\t\tEncontrou {len(produtos)} resultados')
                 for produto in produtos:
                     try:
                         # print(produto)
@@ -65,6 +61,7 @@ class BuscaProduto():
                         preco_post = produto.findAll("p", class_="sc-1iuc9a2-8 bTklot sc-ifAKCX eoKYee")[0].contents[0]
                         preco_post = float(preco_post.split()[1].replace('.', ''))
                         data_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[0].contents[0]
+                        # data_num={'jan':'01', 'fev':'02', 'mar':'03'}
                         hora_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[1].contents[0]
                         cidade_bairro = produto.findAll("span", class_="sc-7l84qu-1 ciykCV sc-ifAKCX dpURtf")[0].contents[0]
                         # print(cidade_bairro)
@@ -109,8 +106,29 @@ class BuscaProduto():
                     except Exception as e:
                         # print(traceback.format_exc())
                         pass
-        return self.lista_produtos
-    
+        self.df_lista_produtos = pd.DataFrame(data=self.lista_produtos)
+        self.df_lista_produtos = self.df_lista_produtos.drop_duplicates()
+
+        locale.setlocale(locale.LC_ALL, 'pt_BR')
+        today=date.today();
+        self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
+        # for i, row in self.df_lista_produtos.iterrows():
+        #     self.df_lista_produtos.data[i] = datetime.strptime(self.df_lista_produtos.data[i], '%d %b').date().strftime('2021-%m-%d')
+        #     self.df_lista_produtos.hora[i] = datetime.strptime(self.df_lista_produtos.hora[i], '%H:%M').time().strftime('%H:%M')
+
+        self.df_lista_produtos.data = [datetime.strptime(x, '%d %b').date().strftime(f'{today.year}-%m-%d') for x in self.df_lista_produtos.data]
+        self.df_lista_produtos.hora = [datetime.strptime(x, '%H:%M').time().strftime('%H:%M') for x in self.df_lista_produtos.hora]
+
+        self.df_lista_produtos["datetime"] = self.df_lista_produtos["data"] +' '+ self.df_lista_produtos["hora"]
+        self.df_lista_produtos.drop(columns=['data', 'hora'], axis=1, inplace=True)
+        self.df_lista_produtos = self.df_lista_produtos[['datetime', 'titulo', 'preco', 'estado', 'cidade', 'bairro', 'url']]
+
+        # self.df_lista_produtos.apply(lambda r : pd.datetime.combine(r['data'],r['hora']),1)
+        
+        pd.to_datetime(self.df_lista_produtos.datetime)
+        self.df_lista_produtos.sort_values(by=['datetime'], inplace=True, ascending=False)
+  
+        return self.df_lista_produtos
 
 
 if __name__ == '__main__':
@@ -123,7 +141,5 @@ if __name__ == '__main__':
     lista_produtos = busca.OLX(filtrar_titulo=True)
 
     # print(lista_produtos)
-    df = pd.DataFrame(data=lista_produtos)
-    df = df.drop_duplicates()
-    print(df)
-    # df.to_excel('dict1.xlsx')
+    print(lista_produtos)
+    lista_produtos.to_excel('dict1.xlsx')
