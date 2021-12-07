@@ -120,7 +120,7 @@ class BuscaProduto():
         try:
             locale.setlocale(locale.LC_ALL, 'pt_BR')
         except:
-            locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil')
+            locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8') #sudo dpkg-reconfigure locales
         today=date.today();
         self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
         # for i, row in self.df_lista_produtos.iterrows():
