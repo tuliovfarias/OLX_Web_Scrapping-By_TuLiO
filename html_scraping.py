@@ -188,7 +188,7 @@ class BuscaProduto():
                 <body>
                     <p>URLs buscadas:<br>{'<br>'.join(self.url_list)}</p>
                     <p>Mostrando produtos abaixo de R$ {self.preco_max},00 de até {self.dias} dia(s) atrás</p>
-                    <p>{self.df_lista_produtos.to_html()}</p>
+                    <p>{self.df_lista_produtos.to_html(index=False)}</p>
                 </body>
                 </html>
                 """
