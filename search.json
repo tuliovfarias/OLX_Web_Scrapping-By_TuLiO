@@ -7,7 +7,7 @@
             "max_paginas":10,
             "ordenar_por": "",
             "filtrar_titulo": "True",
-            "preco_max": 1450,
+            "preco_max": 1500,
             "dias": 1, 
             "email": "True"  
         },

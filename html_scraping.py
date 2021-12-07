@@ -7,6 +7,7 @@ from urllib.parse import quote
 import locale
 # import time
 import traceback
+import os
 
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -170,7 +171,7 @@ class BuscaProduto():
 
     #@staticmethod
     def EnviarEmail(self):
-        with open('cred.json') as cred:
+        with open(json_cred) as cred:
             dados = json.load(cred)
             host = dados["e-mail"]["host"]
             port = dados["e-mail"]["port"]
@@ -205,8 +206,11 @@ class BuscaProduto():
         
 
 if __name__ == '__main__':
+    source_dir = os.path.dirname(__file__)
+    json_search = os.path.join(source_dir,'search.json')
+    json_cred = os.path.join(source_dir,'cred.json')
     print(f'Iniciando busca...')
-    with open('search.json') as search:
+    with open(json_search) as search:
         dados = json.load(search)["search"]
     for dado in dados:
         # print(dado)
