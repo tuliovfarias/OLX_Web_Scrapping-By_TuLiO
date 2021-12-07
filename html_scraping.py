@@ -117,7 +117,10 @@ class BuscaProduto():
 
         self.df_lista_produtos = self.df_lista_produtos.drop_duplicates()
     
-        locale.setlocale(locale.LC_ALL, 'pt_BR')
+        try:
+            locale.setlocale(locale.LC_ALL, 'pt_BR')
+        except:
+            locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil')
         today=date.today();
         self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
         # for i, row in self.df_lista_produtos.iterrows():
@@ -126,21 +129,37 @@ class BuscaProduto():
         self.df_lista_produtos.data = [datetime.strptime(x, '%d %b').date().strftime(f'{today.year}-%m-%d') for x in self.df_lista_produtos.data]
         self.df_lista_produtos.hora = [datetime.strptime(x, '%H:%M').time().strftime('%H:%M') for x in self.df_lista_produtos.hora]
 
-        self.df_lista_produtos["datetime"] = self.df_lista_produtos["data"] +' '+ self.df_lista_produtos["hora"]
+        self.df_lista_produtos["data_hora"] = self.df_lista_produtos["data"] +' '+ self.df_lista_produtos["hora"]
         self.df_lista_produtos.drop(columns=['data', 'hora'], axis=1, inplace=True)
-        self.df_lista_produtos = self.df_lista_produtos[['datetime', 'titulo', 'preco', 'estado', 'cidade', 'bairro', 'url']]
+        self.df_lista_produtos = self.df_lista_produtos[['data_hora', 'titulo', 'preco', 'estado', 'cidade', 'bairro', 'url']]
         # self.df_lista_produtos.apply(lambda r : pd.datetime.combine(r['data'],r['hora']),1)
         
-        pd.to_datetime(self.df_lista_produtos.datetime)
-        self.df_lista_produtos.sort_values(by=['datetime'], inplace=True, ascending=False)
+        self.df_lista_produtos.data_hora = self.df_lista_produtos.data_hora.apply(pd.to_datetime)
+        # print(f'--------------{type(self.df_lista_produtos.data_hora[0])}')
+
+        # self.df_lista_produtos.data_hora = self.df_lista_produtos.data_hora.apply(pd.to_datetime(self.df_lista_produtos.data_hora,format='%d%b%Y:%H:%M:%S.%f'))
+        # self.df_lista_produtos.data_hora = self.df_lista_produtos.data_hora.apply(lambda x: datetime.date(x.year,x.month,x.day))
+
+        self.df_lista_produtos.sort_values(by=['data_hora'], inplace=True, ascending=False)
         self.df_lista_produtos = self.df_lista_produtos.reset_index(drop=True)
 
         return self.df_lista_produtos
 
-    def FiltrarPreco(self, preco_max, email = False):
-        self.preco_max=preco_max
+    def FiltrarPreco(self, preco_max=None, dias=None, email = False):
+        self.preco_max = preco_max
+        self.dias = dias
+        # today = pd.to_datetime(datetime.now(), format='%Y-%m-%d %H:%M:%S')
+        today = datetime.now()
+        # print(f'----------today={today}')
+
         if self.lista_produtos:
-            self.df_lista_produtos = self.df_lista_produtos.query(f'preco <= {preco_max}').reset_index(drop=True)
+            if preco_max:
+                print(f'Filtrando preços menores que: {preco_max}')
+                self.df_lista_produtos = self.df_lista_produtos.query(f'preco <= {preco_max}').reset_index(drop=True)
+            if dias:
+                print(f"Filtrando datas maiores que: {(today-timedelta(dias)).date()}")
+                self.df_lista_produtos=self.df_lista_produtos.loc[self.df_lista_produtos['data_hora'].dt.date >= (today-timedelta(dias)).date()]
+                # self.df_lista_produtos = self.df_lista_produtos.query(f'data_hora >= {(today-timedelta(dias)).date()}').reset_index(drop=True)
             if email:
                 self.EnviarEmail()
             return self.df_lista_produtos
@@ -168,7 +187,7 @@ class BuscaProduto():
                 <head></head>
                 <body>
                     <p>URLs buscadas:<br>{'<br>'.join(self.url_list)}</p>
-                    <p>Mostrando produtos abaixo de R$ {self.preco_max},00</p>
+                    <p>Mostrando produtos abaixo de R$ {self.preco_max},00 de até {self.dias} dia(s) atrás</p>
                     <p>{self.df_lista_produtos.to_html()}</p>
                 </body>
                 </html>
@@ -179,6 +198,7 @@ class BuscaProduto():
                         email_para,
                         email_msg.as_string(),
                         )
+        print(f'E-mail enviado para: {email_para}')
         server.quit()
         
 
@@ -188,7 +208,7 @@ if __name__ == '__main__':
     # busca = BuscaProduto(['ui24r', 'ui24'], cidade='bh', max_paginas=10)
     lista_produtos = busca.OLX(filtrar_titulo=True)
     # print(lista_produtos)
-    filtro_preco = busca.FiltrarPreco(preco_max = 1450, email= True)
+    filtro_preco = busca.FiltrarPreco(preco_max = 2000, dias= 1, email= True)
     if not filtro_preco.empty:
         print(filtro_preco)
     else:
