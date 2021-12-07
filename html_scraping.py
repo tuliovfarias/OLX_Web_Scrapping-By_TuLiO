@@ -19,7 +19,7 @@ class BuscaProduto():
         self.texto_pesquisa = texto_pesquisa
         self.max_paginas = max_paginas
         self.cidade = cidade.lower()
-        self.estado = estado
+        self.estado = estado.lower()
         self.ordenar_por = ordenar_por
         self.lista_produtos = []
 
@@ -36,9 +36,9 @@ class BuscaProduto():
             if not self.estado:
                 self.estado = dict_estado[self.cidade]
             self.cidade = dict_cidade[self.cidade]
-            self.estado=self.estado.lower()+'.'
+            self.estado=self.estado+'.'
         elif self.estado:
-            self.estado=self.estado.lower()+'.'
+            self.estado=self.estado+'.'
         else:
             self.cidade='brasil'
         if self.ordenar_por:
@@ -113,15 +113,17 @@ class BuscaProduto():
 
         self.df_lista_produtos = pd.DataFrame(data=self.lista_produtos)
         if not self.lista_produtos:
+            print("Nenhum resultado encontrado!")
             return self.df_lista_produtos
 
         self.df_lista_produtos = self.df_lista_produtos.drop_duplicates()
-    
+        print(f"{len(self.df_lista_produtos)} resultados sem filtro")
+
         try:
             locale.setlocale(locale.LC_ALL, 'pt_BR')
         except:
             locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8') #sudo dpkg-reconfigure locales
-        today=date.today();
+        today=date.today()
         self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
         # for i, row in self.df_lista_produtos.iterrows():
         #     self.df_lista_produtos.data[i] = datetime.strptime(self.df_lista_produtos.data[i], '%d %b').date().strftime('2021-%m-%d')
@@ -160,7 +162,7 @@ class BuscaProduto():
                 print(f"Filtrando datas maiores que: {(today-timedelta(dias)).date()}")
                 self.df_lista_produtos=self.df_lista_produtos.loc[self.df_lista_produtos['data_hora'].dt.date >= (today-timedelta(dias)).date()]
                 # self.df_lista_produtos = self.df_lista_produtos.query(f'data_hora >= {(today-timedelta(dias)).date()}').reset_index(drop=True)
-            if email:
+            if not self.df_lista_produtos.empty and email:
                 self.EnviarEmail()
             return self.df_lista_produtos
         else:
@@ -204,14 +206,17 @@ class BuscaProduto():
 
 if __name__ == '__main__':
     print(f'Iniciando busca...')
-    busca = BuscaProduto(['sr315a', 'sr315 A'], max_paginas=10)
-    # busca = BuscaProduto(['ui24r', 'ui24'], cidade='bh', max_paginas=10)
-    lista_produtos = busca.OLX(filtrar_titulo=True)
-    # print(lista_produtos)
-    filtro_preco = busca.FiltrarPreco(preco_max = 2000, dias= 1, email= True)
-    if not filtro_preco.empty:
-        print(filtro_preco)
-    else:
-        print('Nenhum resultado no filtro!')
+    with open('search.json') as search:
+        dados = json.load(search)["search"]
+    for dado in dados:
+        # print(dado)
+        busca = BuscaProduto(dado['texto'],dado['max_paginas'],dado['cidade'],dado['estado'],dado['ordenar_por'])
+        lista_produtos = busca.OLX(dado['filtrar_titulo'])
+        # print(lista_produtos)
+        filtro_preco = busca.FiltrarPreco(dado['preco_max'],dado['dias'],dado['email'])
+        if not filtro_preco.empty:
+            print(filtro_preco)
+        else:
+            print('Nenhum resultado no filtro!')
 
     # lista_produtos.to_excel('dict1.xlsx')

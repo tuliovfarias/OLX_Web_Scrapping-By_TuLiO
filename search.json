@@ -1,0 +1,26 @@
+{
+    "search": [
+        {
+            "texto": ["sr315a", "sr315 A"],
+            "estado": "",
+            "cidade": "",
+            "max_paginas":10,
+            "ordenar_por": "",
+            "filtrar_titulo": "True",
+            "preco_max": 1450,
+            "dias": 1, 
+            "email": "True"  
+        },
+        {
+            "texto": ["ui24", "ui24r"],
+            "estado": "",
+            "cidade": "",
+            "max_paginas":10,
+            "ordenar_por": "",
+            "filtrar_titulo": "True",
+            "preco_max": 6000,
+            "dias": 1, 
+            "email": "True"
+        } 
+    ]
+}
