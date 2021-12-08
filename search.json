@@ -6,10 +6,43 @@
             "cidade": "",
             "max_paginas":10,
             "ordenar_por": "",
-            "filtrar_titulo": "True",
+            "filtrar_titulo": 1,
             "preco_max": 1500,
             "dias": 1, 
-            "email": "True"  
+            "email": 1  
+        },
+		{
+            "texto": ["Yamaha 305","305p"],
+            "estado": "",
+            "cidade": "bh",
+            "max_paginas":10,
+            "ordenar_por": "",
+            "filtrar_titulo": 1,
+            "preco_max": 900,
+            "dias": 1, 
+            "email": 1  
+        },
+        {
+            "texto": ["dbr12, dbr15"],
+            "estado": "",
+            "cidade": "bh",
+            "max_paginas":10,
+            "ordenar_por": "",
+            "filtrar_titulo": 1,
+            "preco_max": 3500,
+            "dias": 1, 
+            "email": 1  
+        },
+        {
+            "texto": ["ZLX12","ZLX-12","ZLX15","ZLX-15","ELX200-12"],
+            "estado": "",
+            "cidade": "bh",
+            "max_paginas":10,
+            "ordenar_por": "",
+            "filtrar_titulo": 1,
+            "preco_max": 3500,
+            "dias": 1, 
+            "email": 0  
         },
         {
             "texto": ["ui24", "ui24r"],
@@ -17,10 +50,10 @@
             "cidade": "",
             "max_paginas":10,
             "ordenar_por": "",
-            "filtrar_titulo": "True",
+            "filtrar_titulo": 1,
             "preco_max": 6000,
             "dias": 1, 
-            "email": "True"
+            "email": 1
         } 
     ]
 }

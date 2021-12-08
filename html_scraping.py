@@ -206,21 +206,24 @@ class BuscaProduto():
         
 
 if __name__ == '__main__':
-    source_dir = os.path.dirname(__file__)
-    json_search = os.path.join(source_dir,'search.json')
-    json_cred = os.path.join(source_dir,'cred.json')
-    print(f'Iniciando busca...')
-    with open(json_search) as search:
-        dados = json.load(search)["search"]
-    for dado in dados:
-        # print(dado)
-        busca = BuscaProduto(dado['texto'],dado['max_paginas'],dado['cidade'],dado['estado'],dado['ordenar_por'])
-        lista_produtos = busca.OLX(dado['filtrar_titulo'])
-        # print(lista_produtos)
-        filtro_preco = busca.FiltrarPreco(dado['preco_max'],dado['dias'],dado['email'])
-        if not filtro_preco.empty:
-            print(filtro_preco)
-        else:
-            print('Nenhum resultado no filtro!')
+    try:
+        source_dir = os.path.dirname(__file__)
+        json_search = os.path.join(source_dir,'search.json')
+        json_cred = os.path.join(source_dir,'cred.json')
+        print(f'Iniciando busca...')
+        with open(json_search) as search:
+            dados = json.load(search)["search"]
+        for dado in dados:
+            # print(dado)
+            busca = BuscaProduto(dado['texto'],dado['max_paginas'],dado['cidade'],dado['estado'],dado['ordenar_por'])
+            lista_produtos = busca.OLX(dado['filtrar_titulo'])
+            # print(lista_produtos)
+            filtro_preco = busca.FiltrarPreco(dado['preco_max'],dado['dias'],dado['email'])
+            if not filtro_preco.empty:
+                print(filtro_preco)
+            else:
+                print('Nenhum resultado no filtro!')
 
-    # lista_produtos.to_excel('dict1.xlsx')
+        # lista_produtos.to_excel('dict1.xlsx')
+    except:
+        print(traceback.format_exc())
