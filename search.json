@@ -42,7 +42,7 @@
             "filtrar_titulo": 1,
             "preco_max": 3500,
             "dias": 1, 
-            "email": 0  
+            "email": 1  
         },
         {
             "texto": ["ui24", "ui24r"],
