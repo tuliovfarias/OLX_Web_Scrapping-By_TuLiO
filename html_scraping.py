@@ -13,11 +13,31 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import json
+import sys
+import xlrd
 
 class BuscaProduto():
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+    
+    def close(self):
+        """synonym for save, to make it more file-like"""
+        content = self.save()
+        # self.handles.close()
+        return content
+
+    def save(self):
+        """
+        Save workbook to disk.
+        """
+        pass
+
     def __init__(self,texto_pesquisa, max_paginas=2, cidade='', estado='', ordenar_por=''):
-        if type(texto_pesquisa) is not list: texto_pesquisa=[texto_pesquisa] # para aceitar uma string ou lista de strings
-        self.texto_pesquisa = texto_pesquisa
+        # if type(texto_pesquisa) is not list: texto_pesquisa=[texto_pesquisa] # para aceitar uma string ou lista de strings
+        self.texto_pesquisa = texto_pesquisa.split(',')
         self.max_paginas = max_paginas
         self.cidade = cidade.lower()
         self.estado = estado.lower()
@@ -44,8 +64,9 @@ class BuscaProduto():
             self.cidade='brasil'
         if self.ordenar_por:
             self.ordenar_por = dict_ordenar_por[self.ordenar_por]
+        print(f"\n******* PESQUISANDO: {'%s' % ','.join(self.texto_pesquisa)}") 
         for pesquisa in self.texto_pesquisa:
-            print(f'\n******* PESQUISANDO "{pesquisa}"')         
+            pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois        
             query_pesquisa = quote(pesquisa)            
             for pagina in range(1, self.max_paginas+1):
                 url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + query_pesquisa + self.ordenar_por
@@ -59,8 +80,10 @@ class BuscaProduto():
                 produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY"]})
                 # print(produtos)
                 if len(produtos)== 0:
+                    if pagina == 1:
+                        print(f'\t{pesquisa}: Nenhum resultado')
                     break
-                print(f'\tPÁGINA {str(pagina)} - {url}')
+                print(f'\t{pesquisa}: PÁGINA {str(pagina)} - {url}')
                 for produto in produtos:
                     try:
                         # print(produto)
@@ -132,16 +155,11 @@ class BuscaProduto():
         self.df_lista_produtos.data = [datetime.strptime(x, '%d %b').date().strftime(f'{today.year}-%m-%d') for x in self.df_lista_produtos.data]
         self.df_lista_produtos.hora = [datetime.strptime(x, '%H:%M').time().strftime('%H:%M') for x in self.df_lista_produtos.hora]
 
-        self.df_lista_produtos["data_hora"] = self.df_lista_produtos["data"] +' '+ self.df_lista_produtos["hora"]
+        self.df_lista_produtos["data_hora"] = self.df_lista_produtos["data"] +' '+ self.df_lista_produtos["hora"] # self.df_lista_produtos.apply(lambda r : pd.datetime.combine(r['data'],r['hora']),1)
         self.df_lista_produtos.drop(columns=['data', 'hora'], axis=1, inplace=True)
         self.df_lista_produtos = self.df_lista_produtos[['data_hora', 'titulo', 'preco', 'estado', 'cidade', 'bairro', 'url']]
-        # self.df_lista_produtos.apply(lambda r : pd.datetime.combine(r['data'],r['hora']),1)
-        
+                
         self.df_lista_produtos.data_hora = self.df_lista_produtos.data_hora.apply(pd.to_datetime)
-        # print(f'--------------{type(self.df_lista_produtos.data_hora[0])}')
-
-        # self.df_lista_produtos.data_hora = self.df_lista_produtos.data_hora.apply(pd.to_datetime(self.df_lista_produtos.data_hora,format='%d%b%Y:%H:%M:%S.%f'))
-        # self.df_lista_produtos.data_hora = self.df_lista_produtos.data_hora.apply(lambda x: datetime.date(x.year,x.month,x.day))
 
         self.df_lista_produtos.sort_values(by=['data_hora'], inplace=True, ascending=False)
         self.df_lista_produtos = self.df_lista_produtos.reset_index(drop=True)
@@ -204,26 +222,30 @@ class BuscaProduto():
         print(f'E-mail enviado para: {email_para}')
         server.quit()
         
-
+def get_dict_from_xls(xls_path):
+    df = pd.read_excel(xls_path, sheet_name='Filtros busca', engine='openpyxl').dropna(how='all')
+    df = df.fillna('') 
+    # df = df.replace('\xa0', ' ')
+    return df
+    
 if __name__ == '__main__':
     try:
         source_dir = os.path.dirname(__file__)
-        json_search = os.path.join(source_dir,'search.json')
+        search_filters_path = os.path.join(source_dir,'busca.xlsx')
         json_cred = os.path.join(source_dir,'cred.json')
         print(f'Iniciando busca...')
-        with open(json_search) as search:
-            dados = json.load(search)["search"]
-        for dado in dados:
-            # print(dado)
-            busca = BuscaProduto(dado['texto'],dado['max_paginas'],dado['cidade'],dado['estado'],dado['ordenar_por'])
-            lista_produtos = busca.OLX(dado['filtrar_titulo'])
-            # print(lista_produtos)
-            filtro_preco = busca.FiltrarPreco(dado['preco_max'],dado['dias'],dado['email'])
+        busca_dict_list = get_dict_from_xls(search_filters_path)
+        for i, dado in busca_dict_list.iterrows():
+            with BuscaProduto(dado['busca'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
+                lista_produtos = busca.OLX(dado['filtrar_titulo'])
+                # print(lista_produtos)
+                filtro_preco = busca.FiltrarPreco(dado['preco_max'],dado['dias'],dado['email'])
             if not filtro_preco.empty:
                 print(filtro_preco)
             else:
                 print('Nenhum resultado no filtro!')
 
-        # lista_produtos.to_excel('dict1.xlsx')
+        # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        #     lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
     except:
         print(traceback.format_exc())
