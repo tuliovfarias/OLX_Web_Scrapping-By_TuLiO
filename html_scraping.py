@@ -14,7 +14,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import json
 import sys
-import xlrd
 
 class BuscaProduto():
     def __enter__(self):
@@ -182,13 +181,13 @@ class BuscaProduto():
                 self.df_lista_produtos=self.df_lista_produtos.loc[self.df_lista_produtos['data_hora'].dt.date >= (today-timedelta(dias)).date()]
                 # self.df_lista_produtos = self.df_lista_produtos.query(f'data_hora >= {(today-timedelta(dias)).date()}').reset_index(drop=True)
             if not self.df_lista_produtos.empty and email:
-                self.EnviarEmail()
+                self.EnviarEmail(email)
             return self.df_lista_produtos
         else:
             return self.df_lista_produtos
 
     #@staticmethod
-    def EnviarEmail(self):
+    def EnviarEmail(self, email_para):
         with open(json_cred) as cred:
             dados = json.load(cred)
             host = dados["e-mail"]["host"]
@@ -196,7 +195,7 @@ class BuscaProduto():
             user = dados["e-mail"]["user"]
             password = dados["e-mail"]["password"]
             email_de = dados["e-mail"]["from"]
-            email_para = dados["e-mail"]["to"]
+            # email_para = dados["e-mail"]["to"]
         server = smtplib.SMTP_SSL(host, port)
         server.login(user, password)
         email_msg = MIMEMultipart()
