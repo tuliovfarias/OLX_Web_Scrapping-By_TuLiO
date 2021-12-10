@@ -5,7 +5,7 @@ from datetime import date, timedelta, datetime
 import re
 from urllib.parse import quote
 import locale
-# import time
+import time
 import traceback
 import os
 
@@ -14,6 +14,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import json
 import sys
+from retry import retry
+# from tenacity import retry
 
 class BuscaProduto():
     def __enter__(self):
@@ -65,7 +67,8 @@ class BuscaProduto():
             self.ordenar_por = dict_ordenar_por[self.ordenar_por]
         print(f"\n******* PESQUISANDO: {'%s' % ','.join(self.texto_pesquisa)}") 
         for pesquisa in self.texto_pesquisa:
-            pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois        
+            pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois
+            print(f'\t- {pesquisa}:')        
             query_pesquisa = quote(pesquisa)            
             for pagina in range(1, self.max_paginas+1):
                 url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + query_pesquisa + self.ordenar_por
@@ -73,16 +76,18 @@ class BuscaProduto():
                     url = url+'&o='+str(pagina)
                 else:
                     self.url_list.append(url)
+
                 page = requests.get(url, headers=headers)
+
                 # soup = BeautifulSoup(page.content, "html.parser")
                 soup = BeautifulSoup(page.content, "lxml")
                 produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY"]})
                 # print(produtos)
                 if len(produtos)== 0:
                     if pagina == 1:
-                        print(f'\t{pesquisa}: Nenhum resultado')
+                        print(f'\t\tNenhum resultado')
                     break
-                print(f'\t{pesquisa}: PÁGINA {str(pagina)} - {url}')
+                print(f'\t\tPÁGINA {str(pagina)} - {url}')
                 for produto in produtos:
                     try:
                         # print(produto)
@@ -165,9 +170,10 @@ class BuscaProduto():
 
         return self.df_lista_produtos
 
-    def FiltrarPreco(self, preco_max=None, dias=None, email = False):
+    def Filtrar(self, preco_max=None, intervalo=None, email = False, json_cred_path=None):
+        dias, horas, minutos = 0,0,0
         self.preco_max = preco_max
-        self.dias = dias
+        self.intervalo = intervalo
         # today = pd.to_datetime(datetime.now(), format='%Y-%m-%d %H:%M:%S')
         today = datetime.now()
         # print(f'----------today={today}')
@@ -176,19 +182,33 @@ class BuscaProduto():
             if preco_max:
                 print(f'Filtrando preços menores que: {preco_max}')
                 self.df_lista_produtos = self.df_lista_produtos.query(f'preco <= {preco_max}').reset_index(drop=True)
-            if dias:
-                print(f"Filtrando datas maiores que: {(today-timedelta(dias)).date()}")
-                self.df_lista_produtos=self.df_lista_produtos.loc[self.df_lista_produtos['data_hora'].dt.date >= (today-timedelta(dias)).date()]
-                # self.df_lista_produtos = self.df_lista_produtos.query(f'data_hora >= {(today-timedelta(dias)).date()}').reset_index(drop=True)
+                print(self.df_lista_produtos)
+            if intervalo:
+                tipos={'d': 'dias', 'h' : 'horas', 'm' : 'minutos'}
+                tipo = intervalo[-1]
+                intervalo = int(intervalo[:-1])
+                if tipo == 'd': dias = intervalo
+                elif tipo == 'h': horas = intervalo
+                elif tipo == 'm': minutos = intervalo
+
+                self.intervalo_td = timedelta(days=dias, hours=horas, minutes=minutos)
+                print(f"Filtrando datas maiores que: {(today-self.intervalo_td).strftime('%d/%m/%Y %H:%M:%S')}")
+                time_in_seconds = (self.df_lista_produtos['data_hora'] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
+                # print(time_in_seconds, (today-timedelta(intervalo)).timestamp())
+                
+                # self.df_lista_produtos=self.df_lista_produtos.loc[self.df_lista_produtos['data_hora'].dt.date >= (today-timedelta(intervalo)).date()]
+                self.df_lista_produtos=self.df_lista_produtos.loc[time_in_seconds >= (today-self.intervalo_td).timestamp()]
+
+                # self.df_lista_produtos = self.df_lista_produtos.query(f'data_hora >= {(today-timedelta(intervalo)).date()}').reset_index(drop=True)
             if not self.df_lista_produtos.empty and email:
-                self.EnviarEmail(email)
+                self.EnviarEmail(json_cred_path, email)
             return self.df_lista_produtos
         else:
             return self.df_lista_produtos
 
     #@staticmethod
-    def EnviarEmail(self, email_para):
-        with open(json_cred) as cred:
+    def EnviarEmail(self, json_cred_path, email_para):
+        with open(json_cred_path) as cred:
             dados = json.load(cred)
             host = dados["e-mail"]["host"]
             port = dados["e-mail"]["port"]
@@ -207,7 +227,7 @@ class BuscaProduto():
                 <head></head>
                 <body>
                     <p>URLs buscadas:<br>{'<br>'.join(self.url_list)}</p>
-                    <p>Mostrando produtos abaixo de R$ {self.preco_max},00 de até {self.dias} dia(s) atrás</p>
+                    <p>Mostrando produtos abaixo de R$ {self.preco_max},00 de até {self.intervalo_td} atrás</p>
                     <p>{self.df_lista_produtos.to_html(index=False)}</p>
                 </body>
                 </html>
@@ -222,29 +242,34 @@ class BuscaProduto():
         server.quit()
         
 def get_dict_from_xls(xls_path):
-    df = pd.read_excel(xls_path, sheet_name='Filtros busca', engine='openpyxl').dropna(how='all')
+    df = pd.read_excel(xls_path, sheet_name='Filtros busca', engine='openpyxl', usecols='A:I').dropna(how='all')
     df = df.fillna('') 
     # df = df.replace('\xa0', ' ')
     return df
-    
-if __name__ == '__main__':
-    try:
-        source_dir = os.path.dirname(__file__)
-        search_filters_path = os.path.join(source_dir,'busca.xlsx')
-        json_cred = os.path.join(source_dir,'cred.json')
-        print(f'Iniciando busca...')
-        busca_dict_list = get_dict_from_xls(search_filters_path)
-        for i, dado in busca_dict_list.iterrows():
-            with BuscaProduto(dado['busca'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
-                lista_produtos = busca.OLX(dado['filtrar_titulo'])
-                # print(lista_produtos)
-                filtro_preco = busca.FiltrarPreco(dado['preco_max'],dado['dias'],dado['email'])
-            if not filtro_preco.empty:
-                print(filtro_preco)
-            else:
-                print('Nenhum resultado no filtro!')
+
+@retry(tries=5, delay=60)
+def main():
+    print(f'Iniciando busca...')
+    source_dir = os.path.dirname(__file__)
+    search_filters_path = os.path.join(source_dir,'busca.xlsx')
+    json_cred_path = os.path.join(source_dir,'cred.json')
+    busca_dict_list = get_dict_from_xls(search_filters_path)
+    for i, dado in busca_dict_list.iterrows():
+        with BuscaProduto(dado['busca'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
+            lista_produtos = busca.OLX(dado['filtrar_titulo'])
+            # print(lista_produtos)
+            lista_filtrada = busca.Filtrar(dado['preco_max'],dado['intervalo'],dado['email'],json_cred_path)
+        if not lista_filtrada.empty:
+            print(lista_filtrada)
+        else:
+            print('Nenhum resultado no filtro!')
 
         # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         #     lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
+
+
+if __name__ == '__main__':
+    try:
+        main()
     except:
         print(traceback.format_exc())
