@@ -193,11 +193,10 @@ class BuscaProduto():
 
                 self.intervalo_td = timedelta(days=dias, hours=horas, minutes=minutos)
                 print(f"Filtrando datas maiores que: {(today-self.intervalo_td).strftime('%d/%m/%Y %H:%M:%S')}")
-                time_in_seconds = (self.df_lista_produtos['data_hora'] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
-                # print(time_in_seconds, (today-timedelta(intervalo)).timestamp())
+                time_in_seconds = (self.df_lista_produtos['data_hora'] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s') + 60*60*3 # GMT -3:00h
                 
                 # self.df_lista_produtos=self.df_lista_produtos.loc[self.df_lista_produtos['data_hora'].dt.date >= (today-timedelta(intervalo)).date()]
-                self.df_lista_produtos=self.df_lista_produtos.loc[time_in_seconds >= (today-self.intervalo_td).timestamp()]
+                self.df_lista_produtos=self.df_lista_produtos.loc[time_in_seconds >= int((today-self.intervalo_td).timestamp())]
 
                 # self.df_lista_produtos = self.df_lista_produtos.query(f'data_hora >= {(today-timedelta(intervalo)).date()}').reset_index(drop=True)
             if not self.df_lista_produtos.empty and email:
@@ -227,11 +226,17 @@ class BuscaProduto():
                 <head></head>
                 <body>
                     <p>URLs buscadas:<br>{'<br>'.join(self.url_list)}</p>
-                    <p>Mostrando produtos abaixo de R$ {self.preco_max},00 de até {self.intervalo_td} atrás</p>
-                    <p>{self.df_lista_produtos.to_html(index=False)}</p>
-                </body>
-                </html>
+                    <p>Resultados:</p>
                 """
+        if self.preco_max:
+            html = html + f"<p>- preço abaixo de: R$ {self.preco_max},00</p>"
+        if self.intervalo_td:
+            html = html + f"<p>- publicado até: {self.intervalo} atás</p>"
+        html = html + f"""\
+            <p>{self.df_lista_produtos.to_html(index=False)}</p>
+        </body>
+        </html>
+        """        
         email_msg.attach(MIMEText(html, 'html'))
 
         server.sendmail(email_de,
