@@ -254,17 +254,15 @@ def get_dict_from_xls(xls_path):
     return df
 
 # @retry(tries=5, delay=60)
-def busca_produto(busca, estado, cidade, max_paginas, ordenar_por, filtrar_titulo, preco_max, intervalo, email, json_cred_path):
-    with BuscaProduto(busca,int(max_paginas),cidade,estado,ordenar_por) as pesquisa:
-        lista_produtos = pesquisa.OLX(filtrar_titulo)
+def busca_produto(json_cred_path, dado):
+    with BuscaProduto(dado['busca'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
+        lista_produtos = busca.OLX(dado['filtrar_titulo'])
         # print(lista_produtos)
-        lista_filtrada = pesquisa.Filtrar(preco_max,intervalo,email,json_cred_path)
+        lista_filtrada = busca.Filtrar(dado['preco_max'],dado['intervalo'],dado['email'],json_cred_path)
     if not lista_filtrada.empty:
         print(lista_filtrada)
     else:
         print('Nenhum resultado no filtro!')
-    # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-    #     lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
 
 def main():
     source_dir = os.path.dirname(__file__)
@@ -276,14 +274,15 @@ def main():
     # outputs = pool.map(square, inputs)
     # print(busca_dict_list)
     for dado in busca_dict_list.to_dict(orient="records"):
-        dado['json_cred_path']=json_cred_path
         print(dado)    
-        p = Process(target=busca_produto, args=dado.values())
+        p = Process(target=busca_produto, args=[json_cred_path, dado])
         p.start()
         procs_list.append(p)
         # p.join()
         # subprocess.Popen(busca_produto(dado))
         print(100*"-")
+        # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        # lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
     for p in procs_list:
         p.join()
     print("Finalizou todas as pesquisas!")
