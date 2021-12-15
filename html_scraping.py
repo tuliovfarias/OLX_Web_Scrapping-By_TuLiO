@@ -8,7 +8,8 @@ import locale
 import time
 import traceback
 import os
-
+import subprocess
+from multiprocessing import Process
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -252,26 +253,40 @@ def get_dict_from_xls(xls_path):
     # df = df.replace('\xa0', ' ')
     return df
 
-@retry(tries=5, delay=60)
-def main():
-    print(f'Iniciando busca...')
-    source_dir = os.path.dirname(__file__)
-    search_filters_path = os.path.join(source_dir,'busca.xlsx')
-    json_cred_path = os.path.join(source_dir,'cred.json')
-    busca_dict_list = get_dict_from_xls(search_filters_path)
-    for i, dado in busca_dict_list.iterrows():
-        with BuscaProduto(dado['busca'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
-            lista_produtos = busca.OLX(dado['filtrar_titulo'])
+# @retry(tries=5, delay=60)
+def busca_produto(busca, estado, cidade, max_paginas, ordenar_por, filtrar_titulo, preco_max, intervalo, email):
+        with BuscaProduto(busca,int(max_paginas),cidade,estado,ordenar_por) as pesquisa:
+            lista_produtos = pesquisa.OLX(filtrar_titulo)
             # print(lista_produtos)
-            lista_filtrada = busca.Filtrar(dado['preco_max'],dado['intervalo'],dado['email'],json_cred_path)
+            lista_filtrada = pesquisa.Filtrar(preco_max,intervalo,email,json_cred_path)
         if not lista_filtrada.empty:
             print(lista_filtrada)
         else:
             print('Nenhum resultado no filtro!')
-
         # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         #     lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
 
+def main():
+    procs_list=[]
+    print(f'Iniciando busca...')
+    # outputs = pool.map(square, inputs)
+    # print(busca_dict_list)
+    for dado in busca_dict_list.itertuples(index=False):
+        print(dado)
+        p = Process(target=busca_produto, args=dado)
+        p.start()
+        procs_list.append(p)
+        # p.join()
+        # subprocess.Popen(busca_produto(dado))
+        print(100*"-")
+    for p in procs_list:
+        p.join()
+    print("Finalizou todas as pesquisas!")
+
+source_dir = os.path.dirname(__file__)
+search_filters_path = os.path.join(source_dir,'busca.xlsx')
+busca_dict_list = get_dict_from_xls(search_filters_path)
+json_cred_path = os.path.join(source_dir,'cred.json')
 
 if __name__ == '__main__':
     try:
