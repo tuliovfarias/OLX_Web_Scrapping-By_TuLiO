@@ -254,26 +254,31 @@ def get_dict_from_xls(xls_path):
     return df
 
 # @retry(tries=5, delay=60)
-def busca_produto(busca, estado, cidade, max_paginas, ordenar_por, filtrar_titulo, preco_max, intervalo, email):
-        with BuscaProduto(busca,int(max_paginas),cidade,estado,ordenar_por) as pesquisa:
-            lista_produtos = pesquisa.OLX(filtrar_titulo)
-            # print(lista_produtos)
-            lista_filtrada = pesquisa.Filtrar(preco_max,intervalo,email,json_cred_path)
-        if not lista_filtrada.empty:
-            print(lista_filtrada)
-        else:
-            print('Nenhum resultado no filtro!')
-        # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-        #     lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
+def busca_produto(busca, estado, cidade, max_paginas, ordenar_por, filtrar_titulo, preco_max, intervalo, email, json_cred_path):
+    with BuscaProduto(busca,int(max_paginas),cidade,estado,ordenar_por) as pesquisa:
+        lista_produtos = pesquisa.OLX(filtrar_titulo)
+        # print(lista_produtos)
+        lista_filtrada = pesquisa.Filtrar(preco_max,intervalo,email,json_cred_path)
+    if not lista_filtrada.empty:
+        print(lista_filtrada)
+    else:
+        print('Nenhum resultado no filtro!')
+    # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    #     lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
 
 def main():
+    source_dir = os.path.dirname(__file__)
+    search_filters_path = os.path.join(source_dir,'busca.xlsx')
+    busca_dict_list = get_dict_from_xls(search_filters_path)
+    json_cred_path = os.path.join(source_dir,'cred.json')
     procs_list=[]
     print(f'Iniciando busca...')
     # outputs = pool.map(square, inputs)
     # print(busca_dict_list)
-    for dado in busca_dict_list.itertuples(index=False):
-        print(dado)
-        p = Process(target=busca_produto, args=dado)
+    for dado in busca_dict_list.to_dict(orient="records"):
+        dado['json_cred_path']=json_cred_path
+        print(dado)    
+        p = Process(target=busca_produto, args=dado.values())
         p.start()
         procs_list.append(p)
         # p.join()
@@ -283,10 +288,6 @@ def main():
         p.join()
     print("Finalizou todas as pesquisas!")
 
-source_dir = os.path.dirname(__file__)
-search_filters_path = os.path.join(source_dir,'busca.xlsx')
-busca_dict_list = get_dict_from_xls(search_filters_path)
-json_cred_path = os.path.join(source_dir,'cred.json')
 
 if __name__ == '__main__':
     try:
