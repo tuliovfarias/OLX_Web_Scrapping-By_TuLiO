@@ -81,7 +81,7 @@ class BuscaProduto():
                 page = requests.get(url, headers=headers)
 
                 # soup = BeautifulSoup(page.content, "html.parser")
-                soup = BeautifulSoup(page.content, "lxml")
+                soup = BeautifulSoup(page.content, "html.parser")
                 produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY"]})
                 # print(produtos)
                 if len(produtos)== 0:
@@ -94,7 +94,7 @@ class BuscaProduto():
                         # print(produto)
                         url_produto = produto.find('a')["href"]
                         page_produto = requests.get(url_produto, headers=headers)
-                        soup = BeautifulSoup(page_produto.content, "lxml")
+                        soup = BeautifulSoup(page_produto.content, "html.parser")
 
                         data = soup.find('script', {"id": "initial-data"})
                         search = re.search('"listTime":"(.*?).000Z"',str(data)).group(1)
@@ -156,10 +156,10 @@ class BuscaProduto():
         self.df_lista_produtos = self.df_lista_produtos.drop_duplicates()
         print(f"{len(self.df_lista_produtos)} resultados sem filtro")
 
-        try:
-            locale.setlocale(locale.LC_ALL, 'pt_BR')
-        except:
-            locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8') #sudo dpkg-reconfigure locales
+        # try:
+        #     locale.setlocale(locale.LC_ALL, 'pt_BR')
+        # except:
+        #    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8') #sudo dpkg-reconfigure locales
         today=date.today()
         # self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
 
