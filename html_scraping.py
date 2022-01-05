@@ -92,6 +92,14 @@ class BuscaProduto():
                 for produto in produtos:
                     try:
                         # print(produto)
+                        url_produto = produto.find('a')["href"]
+                        page_produto = requests.get(url_produto, headers=headers)
+                        soup = BeautifulSoup(page_produto.content, "lxml")
+
+                        data = soup.find('script', {"id": "initial-data"})
+                        search = re.search('"listTime":"(.*?).000Z"',str(data)).group(1)
+                        data_hora_post = datetime.fromisoformat(search)
+
                         titulo_anuncio = produto.findAll("h2")[0].contents[0]
                         titulo_anuncio = re.sub(r'<.*>', '', titulo_anuncio).rstrip()
                         if filtrar_titulo:
@@ -123,10 +131,7 @@ class BuscaProduto():
                             bairro_post=''
                             estado_post = re.search(r'(?<=-  )(.*)',cidade_bairro).group()
 
-                        url_produto = produto.find('a')["href"]
-
-                        dic_produtos = {'data': data_post,
-                                        'hora': hora_post,
+                        dic_produtos = {'data_hora': data_hora_post,
                                         'titulo': titulo_anuncio,
                                         'preco': preco_post,
                                         'estado': estado_post,
@@ -137,6 +142,9 @@ class BuscaProduto():
                     except IndexError:
                         # print(traceback.format_exc())
                         count_errors = count_errors+1
+                    except Exception as e:
+                        pass
+                        # print(e)
         # print(f'-> Encontrou {len(self.lista_produtos)} resultados')
         # print(f'-> Erro em {count_errors} resultados\n')
 
@@ -153,15 +161,18 @@ class BuscaProduto():
         except:
             locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8') #sudo dpkg-reconfigure locales
         today=date.today()
-        self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
+        # self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
+
         # for i, row in self.df_lista_produtos.iterrows():
         #     self.df_lista_produtos.data[i] = datetime.strptime(self.df_lista_produtos.data[i], '%d %b').date().strftime('2021-%m-%d')
         #     self.df_lista_produtos.hora[i] = datetime.strptime(self.df_lista_produtos.hora[i], '%H:%M').time().strftime('%H:%M')
-        self.df_lista_produtos.data = [datetime.strptime(x, '%d %b').date().strftime(f'{today.year}-%m-%d') for x in self.df_lista_produtos.data]
-        self.df_lista_produtos.hora = [datetime.strptime(x, '%H:%M').time().strftime('%H:%M') for x in self.df_lista_produtos.hora]
 
-        self.df_lista_produtos["data_hora"] = self.df_lista_produtos["data"] +' '+ self.df_lista_produtos["hora"] # self.df_lista_produtos.apply(lambda r : pd.datetime.combine(r['data'],r['hora']),1)
-        self.df_lista_produtos.drop(columns=['data', 'hora'], axis=1, inplace=True)
+        # self.df_lista_produtos.data = [datetime.strptime(x, '%d %b').date().strftime(f'{today.year}-%m-%d') for x in self.df_lista_produtos.data]
+        # self.df_lista_produtos.hora = [datetime.strptime(x, '%H:%M').time().strftime('%H:%M') for x in self.df_lista_produtos.hora]
+
+        # self.df_lista_produtos["data_hora"] = self.df_lista_produtos["data"] +' '+ self.df_lista_produtos["hora"] # self.df_lista_produtos.apply(lambda r : pd.datetime.combine(r['data'],r['hora']),1)
+        self.df_lista_produtos["data_hora"] = self.df_lista_produtos["data_hora"]
+        # self.df_lista_produtos.drop(columns=['data', 'hora'], axis=1, inplace=True)
         self.df_lista_produtos = self.df_lista_produtos[['data_hora', 'titulo', 'preco', 'estado', 'cidade', 'bairro', 'url']]
                 
         self.df_lista_produtos.data_hora = self.df_lista_produtos.data_hora.apply(pd.to_datetime)
