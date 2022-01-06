@@ -19,6 +19,17 @@ from retry import retry
 # from tenacity import retry
 
 class BuscaProduto():
+    def __init__(self, produto, texto_pesquisa, ignorar, max_paginas=2, cidade='', estado='', ordenar_por=''):
+        # if type(texto_pesquisa) is not list: texto_pesquisa=[texto_pesquisa] # para aceitar uma string ou lista de strings
+        self.produto = produto
+        self.texto_pesquisa = texto_pesquisa.split(',')
+        self.ignorar = ignorar.split(',')
+        self.max_paginas = max_paginas
+        self.cidade = cidade.lower()
+        self.estado = estado.lower()
+        self.ordenar_por = ordenar_por
+        self.lista_produtos = []
+
     def __enter__(self):
         return self
 
@@ -36,15 +47,6 @@ class BuscaProduto():
         Save workbook to disk.
         """
         pass
-
-    def __init__(self,texto_pesquisa, max_paginas=2, cidade='', estado='', ordenar_por=''):
-        # if type(texto_pesquisa) is not list: texto_pesquisa=[texto_pesquisa] # para aceitar uma string ou lista de strings
-        self.texto_pesquisa = texto_pesquisa.split(',')
-        self.max_paginas = max_paginas
-        self.cidade = cidade.lower()
-        self.estado = estado.lower()
-        self.ordenar_por = ordenar_por
-        self.lista_produtos = []
 
     def OLX(self, filtrar_titulo = False):
         self.site='OLX'
@@ -66,7 +68,7 @@ class BuscaProduto():
             self.cidade='brasil'
         if self.ordenar_por:
             self.ordenar_por = dict_ordenar_por[self.ordenar_por]
-        print(f"\n******* PESQUISANDO: {'%s' % ','.join(self.texto_pesquisa)}") 
+        print(f"\n******* PESQUISANDO: {self.produto} ({'%s' % ','.join(self.texto_pesquisa)})") 
         for pesquisa in self.texto_pesquisa:
             pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois
             print(f'\t- {pesquisa}:')        
@@ -82,17 +84,27 @@ class BuscaProduto():
 
                 # soup = BeautifulSoup(page.content, "html.parser")
                 soup = BeautifulSoup(page.content, "html.parser")
-                produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY"]})
-                # print(produtos)
-                if len(produtos)== 0:
+                # produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY", "sc-1fcmfeb-2 bTBcfv"]})
+                # produtos = soup.find_all('div', {"class": ["fnmrjs-1 gIEtsI"]})
+
+                produtos = soup.find('ul', {"id": ["ad-list"]})
+                # .findAll("li", recursive=False)
+
+                # produtos = soup.select("#ad-list")
+                # for produto in produtos:
+                #     print(produto)
+                #     print('//////////////////////////////////////////////////////////////////////////////////////////////////')
+                # sys.exit()
+                if produtos == None or len(produtos)== 0:
                     if pagina == 1:
                         print(f'\t\tNenhum resultado')
                     break
+                produtos = produtos.findChildren('li',recursive=False)
+                
                 print(f'\t\tPÁGINA {str(pagina)} - {url}')
                 for produto in produtos:
                     try:
-                        # print(produto)
-                        url_produto = produto.find('a')["href"]
+                        url_produto = produto.find("a")["href"]
                         page_produto = requests.get(url_produto, headers=headers)
                         soup = BeautifulSoup(page_produto.content, "html.parser")
 
@@ -101,14 +113,21 @@ class BuscaProduto():
                         data_hora_post = datetime.fromisoformat(search)
 
                         titulo_anuncio = produto.findAll("h2")[0].contents[0]
+                        # print(f'*********************************{titulo_anuncio}')
                         titulo_anuncio = re.sub(r'<.*>', '', titulo_anuncio).rstrip()
+                        continue_flag = False
                         if filtrar_titulo:
                             if not re.match(f'.*{pesquisa.lower()}.*', titulo_anuncio.lower()):
                                 continue
+                            if self.ignorar[0] != '':
+                                for ignora in self.ignorar:
+                                    if re.match(f'{ignora.lower()}', titulo_anuncio.lower()):
+                                        continue_flag = True
+                                if continue_flag: continue
                         preco_post = produto.findAll("p", class_="sc-1iuc9a2-8 bTklot sc-ifAKCX eoKYee")[0].contents[0]
                         preco_post = float(preco_post.split()[1].replace('.', ''))
-                        data_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[0].contents[0]
-                        hora_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[1].contents[0]
+                        # data_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[0].contents[0]
+                        # hora_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[1].contents[0]
                         cidade_bairro = produto.findAll("span", class_="sc-7l84qu-1 ciykCV sc-ifAKCX dpURtf")[0].contents[0]
                         if self.cidade != 'brasil':
                             if self.cidade == '':
@@ -143,8 +162,9 @@ class BuscaProduto():
                         # print(traceback.format_exc())
                         count_errors = count_errors+1
                     except Exception as e:
-                        pass
+                        # print(traceback.format_exc())
                         # print(e)
+                        pass
         # print(f'-> Encontrou {len(self.lista_produtos)} resultados')
         # print(f'-> Erro em {count_errors} resultados\n')
 
@@ -160,7 +180,7 @@ class BuscaProduto():
         #     locale.setlocale(locale.LC_ALL, 'pt_BR')
         # except:
         #    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8') #sudo dpkg-reconfigure locales
-        today=date.today()
+        # today=date.today()
         # self.df_lista_produtos.data.replace({'Hoje': today.strftime('%d %b'), 'Ontem': (today - timedelta(1)).strftime('%d %b')}, inplace=True)
 
         # for i, row in self.df_lista_produtos.iterrows():
@@ -202,6 +222,7 @@ class BuscaProduto():
                 if tipo == 'd': dias = intervalo
                 elif tipo == 'h': horas = intervalo
                 elif tipo == 'm': minutos = intervalo
+                self.intervalo_tipo = f'{self.intervalo[:-1]} {tipos[tipo]}'
 
                 self.intervalo_td = timedelta(days=dias, hours=horas, minutes=minutos)
                 print(f"Filtrando datas maiores que: {(today-self.intervalo_td).strftime('%d/%m/%Y %H:%M:%S')}")
@@ -232,7 +253,8 @@ class BuscaProduto():
         email_msg = MIMEMultipart()
         email_msg['From'] = email_de
         email_msg['To'] = email_para
-        email_msg['Subject'] = f"Busca em {self.site} {'(%s)' % ', '.join(self.texto_pesquisa)}"
+        email_msg['Subject'] = f"Busca em {self.site} - {self.produto}"
+        # email_msg['Subject'] = f"Busca em {self.site} {'(%s)' % ', '.join(self.texto_pesquisa)}"
         html = f"""\
                 <html>
                 <head></head>
@@ -243,7 +265,7 @@ class BuscaProduto():
         if self.preco_max:
             html = html + f"<p>- preço abaixo de: R$ {self.preco_max},00</p>"
         if self.intervalo_td:
-            html = html + f"<p>- publicado até: {self.intervalo} atás</p>"
+            html = html + f"<p>- publicado até: {self.intervalo_tipo} atrás</p>"
         html = html + f"""\
             <p>{self.df_lista_produtos.to_html(index=False)}</p>
         </body>
@@ -259,14 +281,14 @@ class BuscaProduto():
         server.quit()
         
 def get_dict_from_xls(xls_path):
-    df = pd.read_excel(xls_path, sheet_name='Filtros busca', engine='openpyxl', usecols='A:I').dropna(how='all')
+    df = pd.read_excel(xls_path, sheet_name='Filtros busca', engine='openpyxl', usecols='A:K').dropna(how='all')
     df = df.fillna('') 
     # df = df.replace('\xa0', ' ')
     return df
 
 # @retry(tries=5, delay=60)
 def busca_produto(json_cred_path, dado):
-    with BuscaProduto(dado['busca'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
+    with BuscaProduto(dado['produto'],dado['filtros'],dado['ignorar'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
         lista_produtos = busca.OLX(dado['filtrar_titulo'])
         # print(lista_produtos)
         lista_filtrada = busca.Filtrar(dado['preco_max'],dado['intervalo'],dado['email'],json_cred_path)
@@ -285,21 +307,26 @@ def main():
     # outputs = pool.map(square, inputs)
     # print(busca_dict_list)
     for dado in busca_dict_list.to_dict(orient="records"):
-        print(dado)    
-        p = Process(target=busca_produto, args=[json_cred_path, dado])
-        p.start()
-        procs_list.append(p)
+        print(dado)
+        if paralelizacao:    
+            p = Process(target=busca_produto, args=[json_cred_path, dado])
+            p.start()
+            procs_list.append(p)
+        else:
+            busca_produto(json_cred_path, dado)
         # p.join()
         # subprocess.Popen(busca_produto(dado))
         print(100*"-")
         # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         # lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
-    for p in procs_list:
-        p.join()
+    if paralelizacao: 
+        for p in procs_list:
+            p.join()
     print("Finalizou todas as pesquisas!")
 
 
 if __name__ == '__main__':
+    paralelizacao=True
     try:
         main()
     except:
