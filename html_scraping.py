@@ -83,7 +83,7 @@ class BuscaProduto():
 
         self.lista_produtos = list(self.lista_produtos)
 
-        print(f'---------------> {self.lista_produtos}')
+        # print(f'---------------> {self.lista_produtos}')
 
         # print(f'-> Encontrou {len(self.lista_produtos)} resultados')
         # print(f'-> Erro em {count_errors} resultados\n')
