@@ -82,19 +82,11 @@ class BuscaProduto():
 
                 page = requests.get(url, headers=headers)
 
-                # soup = BeautifulSoup(page.content, "html.parser")
                 soup = BeautifulSoup(page.content, "html.parser")
                 # produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY", "sc-1fcmfeb-2 bTBcfv"]})
                 # produtos = soup.find_all('div', {"class": ["fnmrjs-1 gIEtsI"]})
 
                 produtos = soup.find('ul', {"id": ["ad-list"]})
-                # .findAll("li", recursive=False)
-
-                # produtos = soup.select("#ad-list")
-                # for produto in produtos:
-                #     print(produto)
-                #     print('//////////////////////////////////////////////////////////////////////////////////////////////////')
-                # sys.exit()
                 if produtos == None or len(produtos)== 0:
                     if pagina == 1:
                         print(f'\t\tNenhum resultado')
@@ -110,7 +102,7 @@ class BuscaProduto():
 
                         data = soup.find('script', {"id": "initial-data"})
                         search = re.search('"listTime":"(.*?).000Z"',str(data)).group(1)
-                        data_hora_post = datetime.fromisoformat(search)
+                        data_hora_post = datetime.fromisoformat(search) - timedelta(hours=3)
 
                         titulo_anuncio = produto.findAll("h2")[0].contents[0]
                         # print(f'*********************************{titulo_anuncio}')
