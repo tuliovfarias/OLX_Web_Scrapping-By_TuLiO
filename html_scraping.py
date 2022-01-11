@@ -4,12 +4,9 @@ from bs4 import BeautifulSoup
 from datetime import date, timedelta, datetime
 import re
 from urllib.parse import quote
-import locale
-import time
 import traceback
 import os
-import subprocess
-from multiprocessing import Process
+from multiprocessing import Process, Manager
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -19,7 +16,7 @@ from retry import retry
 # from tenacity import retry
 
 class BuscaProduto():
-    def __init__(self, produto, texto_pesquisa, ignorar, max_paginas=2, cidade='', estado='', ordenar_por=''):
+    def __init__(self, produto, texto_pesquisa, ignorar, max_paginas=2, cidade='', estado='', ordenar_por='', paralelizacao=True):
         # if type(texto_pesquisa) is not list: texto_pesquisa=[texto_pesquisa] # para aceitar uma string ou lista de strings
         self.produto = produto
         self.texto_pesquisa = texto_pesquisa.split(',')
@@ -29,6 +26,7 @@ class BuscaProduto():
         self.estado = estado.lower()
         self.ordenar_por = ordenar_por
         self.lista_produtos = []
+        self.paralelizacao=paralelizacao
 
     def __enter__(self):
         return self
@@ -51,12 +49,12 @@ class BuscaProduto():
     def OLX(self, filtrar_titulo = False):
         self.site='OLX'
         self.url_list=[]
+        self.filtrar_titulo=filtrar_titulo
 
-        count_errors=0
         dict_cidade = {'bh': 'belo-horizonte-e-regiao', 'sp': 'sao-paulo-e-regiao'}
         dict_ordenar_por = {'data' : '&sf=1'}
         dict_estado = {'bh': 'mg', 'sp': 'sp'}
-        headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'}
+        self.headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'}
         if self.cidade:
             if not self.estado:
                 self.estado = dict_estado[self.cidade]
@@ -68,95 +66,25 @@ class BuscaProduto():
             self.cidade='brasil'
         if self.ordenar_por:
             self.ordenar_por = dict_ordenar_por[self.ordenar_por]
-        print(f"\n******* PESQUISANDO: {self.produto} ({'%s' % ','.join(self.texto_pesquisa)})") 
+        print(f"\n******* PESQUISANDO: {self.produto} ({'%s' % ','.join(self.texto_pesquisa)})")
+        process_list=[]
+        manager = Manager()
+        self.lista_produtos = manager.list()
         for pesquisa in self.texto_pesquisa:
-            pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois
-            print(f'\t- {pesquisa}:')        
-            query_pesquisa = quote(pesquisa)            
-            for pagina in range(1, self.max_paginas+1):
-                url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + query_pesquisa + self.ordenar_por
-                if pagina != 1:
-                    url = url+'&o='+str(pagina)
-                else:
-                    self.url_list.append(url)
+            if self.paralelizacao:
+                p=Process(target=self._OLX_pesquisa, args=(pesquisa, self.lista_produtos,))
+                p.start()
+                process_list.append(p)
+            else:
+                self._OLX_pesquisa(pesquisa, self.lista_produtos)
+        if self.paralelizacao:
+            for p in process_list: 
+                p.join()
 
-                page = requests.get(url, headers=headers)
+        self.lista_produtos = list(self.lista_produtos)
 
-                soup = BeautifulSoup(page.content, "html.parser")
-                # produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY", "sc-1fcmfeb-2 bTBcfv"]})
-                # produtos = soup.find_all('div', {"class": ["fnmrjs-1 gIEtsI"]})
+        print(f'---------------> {self.lista_produtos}')
 
-                produtos = soup.find('ul', {"id": ["ad-list"]})
-                if produtos == None or len(produtos)== 0:
-                    if pagina == 1:
-                        print(f'\t\tNenhum resultado')
-                    break
-                produtos = produtos.findChildren('li',recursive=False)
-                
-                print(f'\t\tPÁGINA {str(pagina)} - {url}')
-                for produto in produtos:
-                    try:
-                        url_produto = produto.find("a")["href"]
-                        page_produto = requests.get(url_produto, headers=headers)
-                        soup = BeautifulSoup(page_produto.content, "html.parser")
-
-                        data = soup.find('script', {"id": "initial-data"})
-                        search = re.search('"listTime":"(.*?).000Z"',str(data)).group(1)
-                        data_hora_post = datetime.fromisoformat(search) - timedelta(hours=3)
-
-                        titulo_anuncio = produto.findAll("h2")[0].contents[0]
-                        # print(f'*********************************{titulo_anuncio}')
-                        titulo_anuncio = re.sub(r'<.*>', '', titulo_anuncio).rstrip()
-                        continue_flag = False
-                        if filtrar_titulo:
-                            if not re.match(f'.*{pesquisa.lower()}.*', titulo_anuncio.lower()):
-                                continue
-                            if self.ignorar[0] != '':
-                                for ignora in self.ignorar:
-                                    if re.match(f'{ignora.lower()}', titulo_anuncio.lower()):
-                                        continue_flag = True
-                                if continue_flag: continue
-                        preco_post = produto.findAll("p", class_="sc-1iuc9a2-8 bTklot sc-ifAKCX eoKYee")[0].contents[0]
-                        preco_post = float(preco_post.split()[1].replace('.', ''))
-                        # data_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[0].contents[0]
-                        # hora_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[1].contents[0]
-                        cidade_bairro = produto.findAll("span", class_="sc-7l84qu-1 ciykCV sc-ifAKCX dpURtf")[0].contents[0]
-                        if self.cidade != 'brasil':
-                            if self.cidade == '':
-                                if re.search(r',',cidade_bairro):
-                                    cidade_post = re.search(r'(.*)(?=,)',cidade_bairro).group() # cidade_post = cidade_bairro.split(',')[0]                       
-                                    bairro_post=re.search(r'(?<=,)(.*)(?= -)',cidade_bairro).group() # bairro_post=cidade_bairro.split(',')[1].split('-')[0][:-1] # remove espaço no final
-                                else:
-                                    cidade_post=re.search(r'(.*)(?= -)',cidade_bairro).group()
-                                    bairro_post = ''                 
-                            else:
-                                if re.search(r',',cidade_bairro):
-                                    cidade_post = re.search(r'(.*)(?=,)',cidade_bairro).group() 
-                                    bairro_post = re.search(r'(?<=,)(.*)',cidade_bairro).group()
-                                else:
-                                    cidade_post = cidade_bairro
-                                    bairro_post = ''
-                            estado_post = self.estado[:-1].upper()
-                        else:
-                            cidade_post = re.search(r'(.*)(?= -)',cidade_bairro).group()
-                            bairro_post=''
-                            estado_post = re.search(r'(?<=-  )(.*)',cidade_bairro).group()
-
-                        dic_produtos = {'data_hora': data_hora_post,
-                                        'titulo': titulo_anuncio,
-                                        'preco': preco_post,
-                                        'estado': estado_post,
-                                        'cidade': cidade_post,
-                                        'bairro': bairro_post,
-                                        'url': url_produto, }
-                        self.lista_produtos.append(dic_produtos)
-                    except IndexError:
-                        # print(traceback.format_exc())
-                        count_errors = count_errors+1
-                    except Exception as e:
-                        # print(traceback.format_exc())
-                        # print(e)
-                        pass
         # print(f'-> Encontrou {len(self.lista_produtos)} resultados')
         # print(f'-> Erro em {count_errors} resultados\n')
 
@@ -193,6 +121,97 @@ class BuscaProduto():
         self.df_lista_produtos = self.df_lista_produtos.reset_index(drop=True)
 
         return self.df_lista_produtos
+    
+    def _OLX_pesquisa(self,pesquisa, lista_produtos):
+        count_errors=0
+        pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois
+        print(f'\t- {pesquisa}:')        
+        query_pesquisa = quote(pesquisa)            
+        for pagina in range(1, self.max_paginas+1):
+            url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + query_pesquisa + self.ordenar_por
+            if pagina != 1:
+                url = url+'&o='+str(pagina)
+            else:
+                self.url_list.append(url)
+
+            page = requests.get(url, headers=self.headers)
+
+            soup = BeautifulSoup(page.content, "html.parser")
+            # produtos = soup.find_all('li', {"class": ["sc-1fcmfeb-2 fvbmlV", "sc-1fcmfeb-2 iezWpY", "sc-1fcmfeb-2 bTBcfv"]})
+            # produtos = soup.find_all('div', {"class": ["fnmrjs-1 gIEtsI"]})
+
+            produtos = soup.find('ul', {"id": ["ad-list"]})
+            if produtos == None or len(produtos)== 0:
+                if pagina == 1:
+                    print(f'\t\tNenhum resultado')
+                break
+            produtos = produtos.findChildren('li',recursive=False)
+            
+            print(f'\t\tPÁGINA {str(pagina)} - {url}')
+            for produto in produtos:
+                try:
+                    url_produto = produto.find("a")["href"]
+                    page_produto = requests.get(url_produto, headers=self.headers)
+                    soup = BeautifulSoup(page_produto.content, "html.parser")
+
+                    data = soup.find('script', {"id": "initial-data"})
+                    search = re.search('"listTime":"(.*?).000Z"',str(data)).group(1)
+                    data_hora_post = datetime.fromisoformat(search) - timedelta(hours=3)
+
+                    titulo_anuncio = produto.findAll("h2")[0].contents[0]
+                    # print(f'*********************************{titulo_anuncio}')
+                    titulo_anuncio = re.sub(r'<.*>', '', titulo_anuncio).rstrip()
+                    continue_flag = False
+                    if self.filtrar_titulo:
+                        if not re.match(f'.*{pesquisa.lower()}.*', titulo_anuncio.lower()):
+                            continue
+                        if self.ignorar[0] != '':
+                            for ignora in self.ignorar:
+                                if re.match(f'{ignora.lower()}', titulo_anuncio.lower()):
+                                    continue_flag = True
+                            if continue_flag: continue
+                    preco_post = produto.findAll("p", class_="sc-1iuc9a2-8 bTklot sc-ifAKCX eoKYee")[0].contents[0]
+                    preco_post = float(preco_post.split()[1].replace('.', ''))
+                    # data_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[0].contents[0]
+                    # hora_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[1].contents[0]
+                    cidade_bairro = produto.findAll("span", class_="sc-7l84qu-1 ciykCV sc-ifAKCX dpURtf")[0].contents[0]
+                    if self.cidade != 'brasil':
+                        if self.cidade == '':
+                            if re.search(r',',cidade_bairro):
+                                cidade_post = re.search(r'(.*)(?=,)',cidade_bairro).group() # cidade_post = cidade_bairro.split(',')[0]                       
+                                bairro_post=re.search(r'(?<=,)(.*)(?= -)',cidade_bairro).group() # bairro_post=cidade_bairro.split(',')[1].split('-')[0][:-1] # remove espaço no final
+                            else:
+                                cidade_post=re.search(r'(.*)(?= -)',cidade_bairro).group()
+                                bairro_post = ''                 
+                        else:
+                            if re.search(r',',cidade_bairro):
+                                cidade_post = re.search(r'(.*)(?=,)',cidade_bairro).group() 
+                                bairro_post = re.search(r'(?<=,)(.*)',cidade_bairro).group()
+                            else:
+                                cidade_post = cidade_bairro
+                                bairro_post = ''
+                        estado_post = self.estado[:-1].upper()
+                    else:
+                        cidade_post = re.search(r'(.*)(?= -)',cidade_bairro).group()
+                        bairro_post=''
+                        estado_post = re.search(r'(?<=-  )(.*)',cidade_bairro).group()
+
+                    dic_produtos = {'data_hora': data_hora_post,
+                                    'titulo': titulo_anuncio,
+                                    'preco': preco_post,
+                                    'estado': estado_post,
+                                    'cidade': cidade_post,
+                                    'bairro': bairro_post,
+                                    'url': url_produto, }
+                    lista_produtos.append(dic_produtos)
+                except IndexError:
+                    # print(traceback.format_exc())
+                    count_errors = count_errors+1
+                except Exception as e:
+                    # print(traceback.format_exc())
+                    # print(e)
+                    pass
+                self.lista_produtos = lista_produtos
 
     def Filtrar(self, preco_max=None, intervalo=None, email = False, json_cred_path=None):
         dias, horas, minutos = 0,0,0
@@ -279,8 +298,8 @@ def get_dict_from_xls(xls_path):
     return df
 
 # @retry(tries=5, delay=60)
-def busca_produto(json_cred_path, dado):
-    with BuscaProduto(dado['produto'],dado['filtros'],dado['ignorar'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por']) as busca:
+def busca_produto(json_cred_path, dado, paralelizacao):
+    with BuscaProduto(dado['produto'],dado['filtros'],dado['ignorar'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por'],paralelizacao) as busca:
         lista_produtos = busca.OLX(dado['filtrar_titulo'])
         # print(lista_produtos)
         lista_filtrada = busca.Filtrar(dado['preco_max'],dado['intervalo'],dado['email'],json_cred_path)
@@ -301,11 +320,11 @@ def main():
     for dado in busca_dict_list.to_dict(orient="records"):
         print(dado)
         if paralelizacao:    
-            p = Process(target=busca_produto, args=[json_cred_path, dado])
+            p = Process(target=busca_produto, args=[json_cred_path, dado, paralelizacao])
             p.start()
             procs_list.append(p)
         else:
-            busca_produto(json_cred_path, dado)
+            busca_produto(json_cred_path, dado, paralelizacao)
         # p.join()
         # subprocess.Popen(busca_produto(dado))
         print(100*"-")
