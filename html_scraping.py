@@ -13,6 +13,11 @@ from email.mime.text import MIMEText
 import json
 import sys
 from retry import retry
+import logging
+
+# logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 # from tenacity import retry
 
 class BuscaProduto():
@@ -130,9 +135,11 @@ class BuscaProduto():
         for pagina in range(1, self.max_paginas+1):
             url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + query_pesquisa + self.ordenar_por
             if pagina != 1:
-                url = url+'&o='+str(pagina)
+                print(url)
             else:
                 self.url_list.append(url)
+            url = url+'&o='+str(pagina)
+            print(url)
 
             page = requests.get(url, headers=self.headers)
 
@@ -151,15 +158,17 @@ class BuscaProduto():
             for produto in produtos:
                 try:
                     url_produto = produto.find("a")["href"]
+                    logging.debug(f"URL: {url_produto}")
                     page_produto = requests.get(url_produto, headers=self.headers)
-                    soup = BeautifulSoup(page_produto.content, "html.parser")
+                    soup_produto = BeautifulSoup(page_produto.content, "html.parser")
 
-                    data = soup.find('script', {"id": "initial-data"})
-                    search = re.search('"listTime":"(.*?).000Z"',str(data)).group(1)
+                    data = str(soup_produto.find('script', {"id": "initial-data"}))
+                    search = re.search('"listTime":"(.*?).000Z"',data).group(1)
                     data_hora_post = datetime.fromisoformat(search) - timedelta(hours=3)
+                    logging.debug(f'Data post: {data_hora_post}')
 
                     titulo_anuncio = produto.findAll("h2")[0].contents[0]
-                    # print(f'*********************************{titulo_anuncio}')
+                    logging.debug(f'Título: {titulo_anuncio}')
                     titulo_anuncio = re.sub(r'<.*>', '', titulo_anuncio).rstrip()
                     continue_flag = False
                     if self.filtrar_titulo:
@@ -170,11 +179,26 @@ class BuscaProduto():
                                 if re.match(f'{ignora.lower()}', titulo_anuncio.lower()):
                                     continue_flag = True
                             if continue_flag: continue
-                    preco_post = produto.findAll("p", class_="sc-1iuc9a2-8 bTklot sc-ifAKCX eoKYee")[0].contents[0]
-                    preco_post = float(preco_post.split()[1].replace('.', ''))
+                    # preco_post = produto.findAll("p", class_="sc-1iuc9a2-8 bTklot sc-ifAKCX eoKYee")[0].contents[0]
+                    # preco_post = float(preco_post.split()[1].replace('.', ''))
+                    preco_post = re.search(r'(?<=\"price\":\"R\$ )(.*?)(?=\")',data).group(1).replace('.','')
+                    logging.debug(f'Preço = {preco_post}')
+
+                    cidade_post = re.search(r'(?<=\"Município\",\"value\":\")(.*?)(?=\")',data).group(1)
+                    logging.debug(f'Estado = {cidade_post}')
+
+                    bairro_post = re.search(r'(?<=\"Bairro\",\"value\":\")(.*?)(?=\")',data).group(1)
+                    logging.debug(f'Estado = {bairro_post}')
+
+                    estado_post = url_produto[8:10].upper()                  
+                    logging.debug(f'Estado = {estado_post}')
+
                     # data_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[0].contents[0]
                     # hora_post = produto.findAll("span", class_="wlwg1t-1 fsgKJO sc-ifAKCX eLPYJb")[1].contents[0]
+
+                    """
                     cidade_bairro = produto.findAll("span", class_="sc-7l84qu-1 ciykCV sc-ifAKCX dpURtf")[0].contents[0]
+
                     if self.cidade != 'brasil':
                         if self.cidade == '':
                             if re.search(r',',cidade_bairro):
@@ -195,6 +219,7 @@ class BuscaProduto():
                         cidade_post = re.search(r'(.*)(?= -)',cidade_bairro).group()
                         bairro_post=''
                         estado_post = re.search(r'(?<=-  )(.*)',cidade_bairro).group()
+                    """
 
                     dic_produtos = {'data_hora': data_hora_post,
                                     'titulo': titulo_anuncio,
@@ -203,7 +228,7 @@ class BuscaProduto():
                                     'cidade': cidade_post,
                                     'bairro': bairro_post,
                                     'url': url_produto, }
-                    lista_produtos.append(dic_produtos)
+                    self.lista_produtos.append(dic_produtos)
                 except IndexError:
                     # print(traceback.format_exc())
                     count_errors = count_errors+1
@@ -211,7 +236,6 @@ class BuscaProduto():
                     # print(traceback.format_exc())
                     # print(e)
                     pass
-                self.lista_produtos = lista_produtos
 
     def Filtrar(self, preco_max=None, intervalo=None, email = False, json_cred_path=None):
         dias, horas, minutos = 0,0,0
@@ -249,7 +273,6 @@ class BuscaProduto():
         else:
             return self.df_lista_produtos
 
-    #@staticmethod
     def EnviarEmail(self, json_cred_path, email_para):
         with open(json_cred_path) as cred:
             dados = json.load(cred)
@@ -325,8 +348,6 @@ def main():
             procs_list.append(p)
         else:
             busca_produto(json_cred_path, dado, paralelizacao)
-        # p.join()
-        # subprocess.Popen(busca_produto(dado))
         print(100*"-")
         # with pd.ExcelWriter(search_filters_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         # lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
@@ -337,7 +358,7 @@ def main():
 
 
 if __name__ == '__main__':
-    paralelizacao=True
+    paralelizacao=False
     try:
         main()
     except:
