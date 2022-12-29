@@ -21,7 +21,7 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 # from tenacity import retry
 
 class BuscaProduto():
-    def __init__(self, produto, texto_pesquisa, ignorar, max_paginas=2, cidade='', estado='', ordenar_por='', paralelizacao=True):
+    def __init__(self, produto:str, texto_pesquisa:str, ignorar:str, max_paginas=2, cidade='', estado='', ordenar_por='', paralelizacao=True):
         # if type(texto_pesquisa) is not list: texto_pesquisa=[texto_pesquisa] # para aceitar uma string ou lista de strings
         self.produto = produto
         self.texto_pesquisa = texto_pesquisa.split(',')
@@ -84,6 +84,7 @@ class BuscaProduto():
                 self._OLX_pesquisa(pesquisa, self.lista_produtos)
         if self.paralelizacao:
             for p in process_list: 
+                p : Process
                 p.join()
 
         self.lista_produtos = list(self.lista_produtos)
@@ -127,7 +128,7 @@ class BuscaProduto():
 
         return self.df_lista_produtos
     
-    def _OLX_pesquisa(self,pesquisa, lista_produtos):
+    def _OLX_pesquisa(self, pesquisa:str, lista_produtos):
         count_errors=0
         pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois
         print(f'\t- {pesquisa}:')        
@@ -273,7 +274,7 @@ class BuscaProduto():
         else:
             return self.df_lista_produtos
 
-    def EnviarEmail(self, json_cred_path, email_para):
+    def EnviarEmail(self, json_cred_path, email_para:str):
         with open(json_cred_path) as cred:
             dados = json.load(cred)
             host = dados["e-mail"]["host"]
@@ -321,7 +322,7 @@ def get_dict_from_xls(xls_path):
     return df
 
 # @retry(tries=5, delay=60)
-def busca_produto(json_cred_path, dado, paralelizacao):
+def busca_produto(json_cred_path, dado:dict, paralelizacao:bool):
     with BuscaProduto(dado['produto'],dado['filtros'],dado['ignorar'],int(dado['max_paginas']),dado['cidade'],dado['estado'],dado['ordenar_por'],paralelizacao) as busca:
         lista_produtos = busca.OLX(dado['filtrar_titulo'])
         # print(lista_produtos)
@@ -353,12 +354,13 @@ def main():
         # lista_produtos.to_excel(writer, sheet_name='Resultados', index=False)
     if paralelizacao: 
         for p in procs_list:
+            p : Process
             p.join()
     print("Finalizou todas as pesquisas!")
 
 
 if __name__ == '__main__':
-    paralelizacao=False
+    paralelizacao = False
     try:
         main()
     except:
