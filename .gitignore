@@ -1,3 +1,4 @@
 ~*
 cred.json
 *.txt
+__pycache__
