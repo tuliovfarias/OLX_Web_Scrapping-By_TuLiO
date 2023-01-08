@@ -1,5 +1,4 @@
 from multiprocessing import Manager, Process
-import sys
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -372,6 +371,10 @@ if __name__ == '__main__':
     source_dir = os.path.dirname(__file__)
     xlsx_filters_path = os.path.join(source_dir,'busca.xlsx')
     json_email_cred_path = os.path.join(source_dir,'cred.json')
+    if not os.path.exists(json_email_cred_path):
+        logging.info(f'Edite o arquivo "cred_exemplo.json" e renomeie para "cred.json"')
+    if not os.path.exists(xlsx_filters_path):
+        logging.info(f'Preencha o arquivo "busca_exemplo.xlsx" e renomeie para "busca.xlsx"')
     from contexttimer import Timer
     try:
         with Timer() as t:
