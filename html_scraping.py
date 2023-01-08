@@ -53,7 +53,6 @@ class BuscaProduto():
 
     def OLX(self):
         self.site='OLX'
-        self.url_list=[]
 
         dict_cidade = {'bh': 'belo-horizonte-e-regiao', 'sp': 'sao-paulo-e-regiao'}
         dict_ordenar_por = {'data' : '&sf=1'}
@@ -105,7 +104,6 @@ class BuscaProduto():
             if not page_found_flag: break
            
     def OLX_pesquisa_pagina(self, url:str, pagina:int, pesquisa:str):
-        self.url_list.append(url)
         url = url+'&o='+str(pagina)
 
         logging.info(f'\tPÁGINA {str(pagina)} ({pesquisa}) - {url}')
@@ -146,7 +144,6 @@ class BuscaProduto():
 
                 executor.submit(self.append_prod_list, url_produto) # Executa paralelizado
                 # self._OLX_pesquisa_prod(produto, pesquisa) # Executa não paralelizado
-                # self.lista_produtos.append((executor.submit(self.OLX_pesquisa_prod, url_produto)).result())
         return True
 
     @staticmethod
@@ -240,9 +237,6 @@ class BuscaProduto():
             # self.lista_produtos.append(dic_produtos)
             return dic_produtos
 
-        except IndexError:
-            logging.ERROR(traceback.format_exc())
-            # count_errors = count_errors+1
         except Exception:
             logging.ERROR(traceback.format_exc())
             # count_errors = count_errors+1
@@ -277,6 +271,7 @@ class BuscaProduto():
         intervalo_tipo_str = f'{intervalo[:-1]} {tipos[tipo]}'        
         return intervalo_timedelta, intervalo_tipo_str
 
+    @retry(tries=5, delay=60)
     def EnviarEmail(self, json_cred_path, email_para : str = None):
         with open(json_cred_path) as cred:
             dados = json.load(cred)
@@ -298,7 +293,6 @@ class BuscaProduto():
                 <html>
                 <head></head>
                 <body>
-                    <p>URLs buscadas:<br>{'<br>'.join(self.url_list)}</p>
                     <p>Resultados:</p>
                 """
         if self.preco_max:
@@ -325,7 +319,6 @@ def get_dict_from_xls(xls_path) -> List[Dict[str,str]]:
     # df = df.replace('\xa0', ' ')
     return list(df.to_dict(orient = "records"))
 
-# @retry(tries=5, delay=60)
 def busca_produto_e_envia_email(dado:dict) -> Tuple[str, pd.DataFrame]:
     busca = BuscaProduto(**dado)
     lista_produtos = busca.OLX()
