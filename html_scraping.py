@@ -1,4 +1,5 @@
 from multiprocessing import Manager, Process
+import shutil
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -14,7 +15,6 @@ from retry import retry
 import logging
 from typing import List, Dict, Tuple
 import json
-from unidecode import unidecode
 import concurrent.futures      
 
 
@@ -99,9 +99,13 @@ class BuscaProduto():
         pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois
         # logging.info(f'\t- {pesquisa}:')        
         for pagina in range(1, self.max_paginas+1):
-            url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + quote(pesquisa) + self.ordenar_por
+            url = self.criar_url_base(pesquisa)
             page_found_flag = self.OLX_pesquisa_pagina(url, pagina, pesquisa)
             if not page_found_flag: break
+        
+    def criar_url_base(self, pesquisa:str) -> str:
+        url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + quote(pesquisa) + self.ordenar_por
+        return url
            
     def OLX_pesquisa_pagina(self, url:str, pagina:int, pesquisa:str):
         url = url+'&o='+str(pagina)
@@ -161,8 +165,8 @@ class BuscaProduto():
         e considera que pode ter qualquer outra coisa entre as palavras.
         Não é case sensitive
         '''
-        str1_fmt = unidecode(str1.lower())
-        str2_fmt = unidecode(str2.lower())
+        str1_fmt = str1.lower()
+        str2_fmt = str2.lower()
         if re.match(f'.*{str1_fmt}.*', str2_fmt):
             return True
         elif str1_fmt.find(" "): 
@@ -357,17 +361,29 @@ def busca_OLX(paralelizar = False):
     else:
         for params in product_params_dict:
             busca_produto_e_envia_email(params)
-  
+
     logging.info("Finalizou todas as pesquisas!")
 
 if __name__ == '__main__':
+    
     source_dir = os.path.dirname(__file__)
     xlsx_filters_path = os.path.join(source_dir,'busca.xlsx')
+    xlsx_filters_path_example = os.path.join(source_dir,'busca_exemplo.xlsx')
     json_email_cred_path = os.path.join(source_dir,'cred.json')
+    json_email_cred_path_example = os.path.join(source_dir,'cred_exemplo.json')
+    flag_exit = False
+
     if not os.path.exists(json_email_cred_path):
-        logging.info(f'Edite o arquivo "cred_exemplo.json" e renomeie para "cred.json"')
+        logging.info(f'Edite o arquivo "cred.json" e depois execute novamente')
+        shutil.copy2(json_email_cred_path_example, json_email_cred_path)
+        flag_exit = True
     if not os.path.exists(xlsx_filters_path):
-        logging.info(f'Preencha o arquivo "busca_exemplo.xlsx" e renomeie para "busca.xlsx"')
+        logging.info(f'Edite o arquivo "busca.xlsx" e depois execute novamente')
+        shutil.copy2(xlsx_filters_path_example, xlsx_filters_path)
+        flag_exit = True
+    if flag_exit:
+        exit()
+
     from contexttimer import Timer
     try:
         with Timer() as t:
