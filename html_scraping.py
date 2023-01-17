@@ -1,3 +1,11 @@
+import subprocess
+import sys
+
+def install_requirements(requirements_file):
+    subprocess.check_output([sys.executable, "-m", "pip", "install", "-r", requirements_file])
+requirements_file = "requirements.txt"
+install_requirements(requirements_file)
+
 from multiprocessing import Manager, Process
 import shutil
 import pandas as pd
@@ -147,7 +155,7 @@ class BuscaProduto():
                     logging.debug(f"Título não encontrado na página: \n{produto}\n\n")
 
                 executor.submit(self.append_prod_list, url_produto) # Executa paralelizado
-                # self._OLX_pesquisa_prod(produto, pesquisa) # Executa não paralelizado
+                # self.append_prod_list(url_produto) # Executa não paralelizado
         return True
 
     @staticmethod
@@ -190,7 +198,7 @@ class BuscaProduto():
         try:
             headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'}
             page_produto = requests.get(url_produto, headers=headers)
-            soup_produto = BeautifulSoup(page_produto.content, features="lxml") #features="html.parser"
+            soup_produto = BeautifulSoup(page_produto.content, "html.parser") # features="lxml"
 
             dados_str = str(soup_produto.find('script', {"id": "initial-data"}))
             if dados_str.find('&quot;'):
@@ -372,6 +380,7 @@ if __name__ == '__main__':
     json_email_cred_path = os.path.join(source_dir,'cred.json')
     json_email_cred_path_example = os.path.join(source_dir,'cred_exemplo.json')
     flag_exit = False
+
 
     if not os.path.exists(json_email_cred_path):
         logging.info(f'Edite o arquivo "cred.json" e depois execute novamente')
