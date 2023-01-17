@@ -427,8 +427,8 @@ if __name__ == '__main__':
 
     source_dir = os.path.dirname(__file__)
     templates_dir = os.path.join(source_dir,'templates')
-    xlsx_filters_path_example = os.path.join(templates_dir,'busca_exemplo.xlsx')
-    json_cred_path_example = os.path.join(templates_dir,'cred_exemplo.json')
+    xlsx_filters_path_example = os.path.join(templates_dir,BUSCA_FILE)
+    json_cred_path_example = os.path.join(templates_dir,CRED_FILE)
 
     xlsx_filters_path = os.path.join(source_dir, BUSCA_FILE)
     json_cred_path = os.path.join(source_dir, CRED_FILE)

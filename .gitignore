@@ -1,6 +1,6 @@
 ~*
-cred.json
-busca.xlsx
+/cred.json
+/busca.xlsx
 __pycache__
-token.json
-gsheet_credentials.json
+/token.json
+/gsheet_credentials.json
