@@ -12,11 +12,10 @@ from typing import List
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
-
 class GSheetAPI():
 
-    def __init__(self, gsheet_cred_file) -> None:
-        self.creds = self._load_creds(gsheet_cred_file)
+    def __init__(self, gsheet_cred_path) -> None:
+        self.creds = self._load_creds(gsheet_cred_path)
         
     def _load_creds(self, gsheet_cred_file) -> None:
         """Shows basic usage of the Sheets API.
@@ -56,7 +55,3 @@ class GSheetAPI():
             return values
         except HttpError as err:
             print(err)
-
-
-if __name__ == '__main__':
-    main()
