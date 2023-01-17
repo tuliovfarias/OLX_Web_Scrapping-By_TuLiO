@@ -4,7 +4,7 @@ import os
 
 def install_requirements(requirements_file):
     subprocess.check_output([sys.executable, "-m", "pip", "install", "-r", requirements_file])
-requirements_file = os.path.join(os.path.abspath(__file__),"requirements.txt")
+requirements_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),"requirements.txt")
 install_requirements(requirements_file)
 
 from multiprocessing import Manager, Process
