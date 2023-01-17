@@ -6,6 +6,7 @@ def install_requirements(requirements_file):
 requirements_file = "requirements.txt"
 install_requirements(requirements_file)
 
+from googleapiclient.discovery import build
 from multiprocessing import Manager, Process
 import shutil
 import pandas as pd
@@ -23,7 +24,9 @@ from retry import retry
 import logging
 from typing import List, Dict, Tuple
 import json
-import concurrent.futures      
+import concurrent.futures     
+
+from gsheet_API import GSheetAPI
 
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -359,8 +362,40 @@ def run_func_in_parallel_ThreadPool(fn, args_dict:dict):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         return list(executor.map(fn, args_dict))
 
+def get_sheet_id_from_json(json_cred_path):
+    with open(json_cred_path) as cred:
+        dados = json.load(cred)
+        return dados["google-sheet"]["sheet_id"]
+
+
+def get_dict_from_gsheet(sheet_id, gsheet_cred_file, sheet_range):
+
+    gsheet_cred_file = 'gsheet_credentials.json'
+    sheet_range = 'busca!A:K'
+
+    gsheet = GSheetAPI(gsheet_cred_file)
+    values = gsheet.get_data_from_sheet(sheet_id=sheet_id, sheet_range=sheet_range)
+    dados = []
+
+    for l in range(1, len(values)-1): # número de linhas de dados
+        dict = {}
+        for c in range(0, len(values[0])): # número de colunas
+            dict[values[0][c]] = values[l][c]
+        dados.append(dict)
+    return dados
+
 def busca_OLX(paralelizar = False):
-    product_params_dict = get_dict_from_xls(xlsx_filters_path)
+
+    if not USE_GSHEET:
+        product_params_dict = get_dict_from_xls(xlsx_filters_path)
+
+    else:
+        product_params_dict = get_dict_from_gsheet(
+            sheet_id = get_sheet_id_from_json(json_cred_path),
+            gsheet_cred_file = 'gsheet_credentials.json',
+            sheet_range = 'busca!A:K',            
+        )
+
     logging.info(f'Iniciando busca...')
 
     if paralelizar:
@@ -373,23 +408,36 @@ def busca_OLX(paralelizar = False):
     logging.info("Finalizou todas as pesquisas!")
 
 if __name__ == '__main__':
-    
+
+    USE_GSHEET = True
+    EMAIL_CRED_FILE = 'cred.json'
+    BUSCA_FILE = 'busca.xlsx'
+    GSHEET_CRED_FILE = 'gsheet_credentials.json'
+
     source_dir = os.path.dirname(__file__)
-    xlsx_filters_path = os.path.join(source_dir,'busca.xlsx')
+    xlsx_filters_path = os.path.join(source_dir, BUSCA_FILE)
     xlsx_filters_path_example = os.path.join(source_dir,'busca_exemplo.xlsx')
-    json_email_cred_path = os.path.join(source_dir,'cred.json')
-    json_email_cred_path_example = os.path.join(source_dir,'cred_exemplo.json')
+    json_cred_path = os.path.join(source_dir, EMAIL_CRED_FILE)
+    json_cred_path_example = os.path.join(source_dir,'cred_exemplo.json')
+    gsheet_cred_path = os.path.join(source_dir, GSHEET_CRED_FILE)
     flag_exit = False
 
+    if not os.path.exists(json_cred_path):
+        logging.info(f'Edite o arquivo "{EMAIL_CRED_FILE}" e depois execute novamente')
+        shutil.copy2(json_cred_path_example, json_cred_path)
+        flag_exit = True
 
-    if not os.path.exists(json_email_cred_path):
-        logging.info(f'Edite o arquivo "cred.json" e depois execute novamente')
-        shutil.copy2(json_email_cred_path_example, json_email_cred_path)
-        flag_exit = True
-    if not os.path.exists(xlsx_filters_path):
-        logging.info(f'Edite o arquivo "busca.xlsx" e depois execute novamente')
-        shutil.copy2(xlsx_filters_path_example, xlsx_filters_path)
-        flag_exit = True
+    if not USE_GSHEET:
+        if not os.path.exists(GSHEET_CRED_FILE):
+            logging.info(f'Edite o arquivo "{BUSCA_FILE}" e depois execute novamente')
+            shutil.copy2(xlsx_filters_path_example, xlsx_filters_path)
+            flag_exit = True
+    
+    else:
+        if not os.path.exists(gsheet_cred_path):
+            logging.info(f'Crie o arquivo "{GSHEET_CRED_FILE}" e depois execute novamente')
+            flag_exit = True
+
     if flag_exit:
         exit()
 
