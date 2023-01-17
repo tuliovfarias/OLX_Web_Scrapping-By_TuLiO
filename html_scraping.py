@@ -1,9 +1,10 @@
 import subprocess
 import sys
+import os
 
 def install_requirements(requirements_file):
     subprocess.check_output([sys.executable, "-m", "pip", "install", "-r", requirements_file])
-requirements_file = "requirements.txt"
+requirements_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),"requirements.txt")
 install_requirements(requirements_file)
 
 from googleapiclient.discovery import build
@@ -16,7 +17,6 @@ from datetime import timedelta, datetime
 import re
 from urllib.parse import quote
 import traceback
-import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
