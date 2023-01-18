@@ -394,8 +394,8 @@ def get_params_produtos(origem:str) -> List[Dict[str,str]]:
             sheet_range = 'busca!A:K',            
         )
     elif origem == 'local':
-        logging.info(f'Carregando dados da planilha local: {xlsx_filters_path}...')
-        products_params = get_dict_from_xls(xlsx_filters_path)
+        logging.info(f'Carregando dados da planilha local: {busca_xlsx_path}...')
+        products_params = get_dict_from_xls(busca_xlsx_path)
     
     return products_params
 
@@ -427,17 +427,17 @@ if __name__ == '__main__':
 
     source_dir = os.path.dirname(__file__)
     templates_dir = os.path.join(source_dir,'templates')
-    xlsx_filters_path_example = os.path.join(templates_dir,BUSCA_FILE)
-    json_cred_path_example = os.path.join(templates_dir,CRED_FILE)
+    busca_xlsx_path_template = os.path.join(templates_dir,BUSCA_FILE)
+    json_cred_path_template = os.path.join(templates_dir,CRED_FILE)
 
-    xlsx_filters_path = os.path.join(source_dir, BUSCA_FILE)
     json_cred_path = os.path.join(source_dir, CRED_FILE)
+    busca_xlsx_path = os.path.join(source_dir, BUSCA_FILE)
     gsheet_cred_path = os.path.join(source_dir, GSHEET_CRED_FILE)
     flag_exit = False
 
     if not os.path.exists(json_cred_path):
         logging.info(f'Edite o arquivo "{CRED_FILE}" e depois execute novamente')
-        shutil.copy2(json_cred_path_example, json_cred_path)
+        shutil.copy2(json_cred_path_template, json_cred_path)
         flag_exit = True
 
     if origem == 'gsheet':
@@ -445,9 +445,9 @@ if __name__ == '__main__':
             logging.info(f'Crie o arquivo "{GSHEET_CRED_FILE}" e depois execute novamente')
             flag_exit = True
     else:
-        if not os.path.exists(GSHEET_CRED_FILE):
+        if not os.path.exists(busca_xlsx_path):
             logging.info(f'Edite o arquivo "{BUSCA_FILE}" e depois execute novamente')
-            shutil.copy2(xlsx_filters_path_example, xlsx_filters_path)
+            shutil.copy2(busca_xlsx_path_template, busca_xlsx_path)
             flag_exit = True
 
     if flag_exit:
