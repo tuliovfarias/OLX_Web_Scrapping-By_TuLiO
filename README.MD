@@ -6,7 +6,9 @@ Busca automatizada de produtos no site da OLX usando planilha para cadastro de p
 - https://www.youtube.com/watch?v=bqVZsbjeJ2Y
 - Execute o script `html_scraping.py` com o argumento --local, exemplo: `python3 html_scraping.py --local`
 
-## Para usar planilha do Google Sheets, siga os passos (vídeo, em breve):
+## Para usar planilha do Google Sheets, siga os passos:
+- Vídeo com passo a passo explicado: https://www.youtube.com/watch?v=1GIn0Y9jaws
+
 1. No Google Cloud console, vai em `Menu` > `APIs & Services` > `Credentials`.
 ou entre direto no link: https://console.cloud.google.com/apis/credentials
 
