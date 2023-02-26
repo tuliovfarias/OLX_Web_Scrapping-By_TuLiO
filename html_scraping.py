@@ -338,7 +338,9 @@ def busca_produto_e_envia_email(dado:Dict[str,Any]) -> Tuple[str, pd.DataFrame]:
     busca = BuscaProduto(**dado)
     lista_produtos = busca.OLX()
     # logging.info(lista_produtos.to_dict(orient = "records"))
-    df_lista_filtrada = busca.filtrar(preco_max = float(str(dado['preco_max']).replace('.','')), intervalo = dado['intervalo'])
+    preco_max = str(dado['preco_max']).replace('.','')
+    preco_max = float(preco_max) if preco_max != '' else None
+    df_lista_filtrada = busca.filtrar(preco_max = preco_max, intervalo = dado['intervalo'])
     if not df_lista_filtrada.empty:
         logging.info(f"{len(df_lista_filtrada)} resultados com filtro:\n{df_lista_filtrada}")
         busca.EnviarEmail(os.path.join(os.path.dirname(__file__),'cred.json'), email_para = dado['email'])
