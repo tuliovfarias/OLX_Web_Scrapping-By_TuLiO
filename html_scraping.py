@@ -124,7 +124,7 @@ class BuscaProduto():
         logging.info(f'\tPÁGINA {str(pagina)} ({pesquisa}) - {url}')
 
         page = requests.get(url, headers=self.headers)
-        soup = BeautifulSoup(page.content, "html.parser")
+        soup = BeautifulSoup(page.content, "lxml") #"html.parser"
         produtos = soup.find('ul', {"id": ["ad-list"]})
 
         if produtos == None or len(produtos)== 0:
@@ -201,7 +201,7 @@ class BuscaProduto():
         try:
             headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'}
             page_produto = requests.get(url_produto, headers=headers)
-            soup_produto = BeautifulSoup(page_produto.content, "html.parser") # features="lxml"
+            soup_produto = BeautifulSoup(page_produto.content, "lxml") # features="lxml"
 
             dados_str = str(soup_produto.find('script', {"id": "initial-data"}))
             if dados_str.find('&quot;'):
