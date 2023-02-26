@@ -7,8 +7,9 @@ def install_requirements(requirements_file):
 requirements_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),"requirements.txt")
 install_requirements(requirements_file)
 
+import asyncio
 import locale
-from multiprocessing import Manager, Process
+from multiprocessing import Process
 import shutil
 import pandas as pd
 import requests
@@ -24,14 +25,14 @@ from retry import retry
 import logging
 from typing import List, Dict, Tuple, Any
 import json
-import concurrent.futures     
+import concurrent.futures   
+from contexttimer import Timer  
 
 from gsheet_API import GSheetAPI
 
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-logging.basicConfig(level=logging.INFO, format='%(message)s')
 logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
-
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 class BuscaProduto():
 
@@ -81,13 +82,10 @@ class BuscaProduto():
         if self.ordenar_por:
             self.ordenar_por = dict_ordenar_por[self.ordenar_por]
 
-        logging.info(f"\n******* PESQUISANDO: {self.produto} ({'%s' % ','.join(self.texto_pesquisa)})")
-        manager = Manager()
-        self.lista_produtos = manager.list()
-        run_func_in_parallel_Process(self._OLX_pesquisa, self.texto_pesquisa)
-        # for pesquisa in self.texto_pesquisa:
+        logging.info(f"******* PESQUISANDO: {self.produto} ({'%s' % ','.join(self.texto_pesquisa)})")
+        run_func_in_parallel_ThreadPool(self._OLX_pesquisa, self.texto_pesquisa)
+        # for pesquisa in self.texto_pesquisa:  # Executa não paralelizado
         #    self._OLX_pesquisa(pesquisa)
-
         self.lista_produtos = list(self.lista_produtos)
 
         self.df_lista_produtos = pd.DataFrame(data=self.lista_produtos)
@@ -108,7 +106,6 @@ class BuscaProduto():
     def _OLX_pesquisa(self, pesquisa:str):
         page_found_flag = False
         pesquisa = pesquisa.lstrip().rstrip() # remove espaço antes e depois
-        # logging.info(f'\t- {pesquisa}:')        
         for pagina in range(1, self.max_paginas+1):
             url = self.criar_url_base(pesquisa)
             page_found_flag = self.OLX_pesquisa_pagina(url, pagina, pesquisa)
@@ -195,7 +192,7 @@ class BuscaProduto():
     
     def append_prod_list(self, url_produto:str):
         self.lista_produtos.append(self.OLX_pesquisa_prod(url_produto))
-  
+
     @staticmethod
     def OLX_pesquisa_prod(url_produto:str):
         try:
@@ -219,27 +216,22 @@ class BuscaProduto():
                     return
             logging.debug(f'Data/hora de publicação: {data_hora_post}')
 
-            group_or_empty = lambda a: a.group() if a else ''
+            regex_list = [
+                r'(?<=\"subject\":\").*?(?=\")',
+                r'(?<=\"price\":\"R\$ ).*?(?=\")',
+                r'(?<=\"Município\",\"value\":\").*?(?=\")',
+                r'(?<=\"Bairro\",\"value\":\").*?(?=\")'
+            ]
+            async def search_and_extract(pattern:re.Pattern, string:str):
+                match = re.search(pattern, string)
+                return match.group() if match else ''
+            async def run_searchs():
+                tasks = [asyncio.create_task(search_and_extract(regex, dados_str)) for regex in regex_list]
+                return await asyncio.gather(*tasks)                
+            titulo_anuncio, preco_post, cidade_post, bairro_post = asyncio.run(run_searchs())
 
-            titulo_anuncio = re.search(r'(?<=\"subject\":\").*?(?=\")',dados_str)
-            titulo_anuncio = group_or_empty(titulo_anuncio)
-            logging.debug(f'Título = {titulo_anuncio}')
-
-            preco_post = re.search(r'(?<=\"price\":\"R\$ ).*?(?=\")',dados_str)
-            preco_post = group_or_empty(preco_post).replace('.','')
             preco_post = float(preco_post) if preco_post else 0.0
-            logging.debug(f'Preço = {preco_post}')
-
-            cidade_post = re.search(r'(?<=\"Município\",\"value\":\").*?(?=\")',dados_str)
-            cidade_post = group_or_empty(cidade_post)
-            logging.debug(f'Cidade = {cidade_post}')
-
-            bairro_post = re.search(r'(?<=\"Bairro\",\"value\":\").*?(?=\")',dados_str)
-            bairro_post = group_or_empty(bairro_post)
-            logging.debug(f'Bairro = {bairro_post}')
-
-            estado_post = url_produto[8:10].upper()                  
-            logging.debug(f'Estado = {estado_post}')
+            estado_post = url_produto[8:10].upper()
 
             dic_produtos = {'data_hora': data_hora_post,
                             'titulo': titulo_anuncio,
@@ -253,7 +245,7 @@ class BuscaProduto():
             return dic_produtos
 
         except Exception:
-            logging.ERROR(traceback.format_exc())
+            logging.error(traceback.format_exc())
             # count_errors = count_errors+1
 
     def filtrar(self, preco_max:float=None, intervalo=None):
@@ -404,8 +396,8 @@ def get_params_produtos(origem:str) -> List[Dict[str,str]]:
 def busca_OLX(products_params : List[Dict[str,str]], paralelizar = False):
     logging.info(f'Iniciando busca...')
     if paralelizar:
-        run_func_in_parallel_Process(busca_produto_e_envia_email, products_params) # pode dar erro dependendo da quantidade se buscas
-        # results = run_func_in_parallel_ThreadPool(busca_produto_e_envia_email, product_params_dict) #error
+        run_func_in_parallel_Process(busca_produto_e_envia_email, products_params)
+        # run_func_in_parallel_ThreadPool(busca_produto_e_envia_email, products_params)
     else:
         for params in products_params:
             busca_produto_e_envia_email(params)
@@ -455,12 +447,11 @@ if __name__ == '__main__':
     if flag_exit:
         sys.exit()
 
-    from contexttimer import Timer
     try:
         with Timer() as t:
             products_params = get_params_produtos(origem = origem)
             logging.debug(products_params)
-            busca_OLX(products_params = products_params, paralelizar = False)
+            busca_OLX(products_params = products_params, paralelizar = True)
             logging.info(f'Tempo total das buscas: {t.elapsed}s')
     except:
         logging.error(traceback.format_exc())
