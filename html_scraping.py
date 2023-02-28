@@ -230,7 +230,7 @@ class BuscaProduto():
                 return await asyncio.gather(*tasks)                
             titulo_anuncio, preco_post, cidade_post, bairro_post = asyncio.run(run_searchs())
 
-            preco_post = float(preco_post) if preco_post else 0.0
+            preco_post = float(preco_post.replace('.','')) if preco_post else 0.0
             estado_post = url_produto[8:10].upper()
 
             dic_produtos = {'data_hora': data_hora_post,
