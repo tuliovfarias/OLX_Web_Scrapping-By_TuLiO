@@ -25,6 +25,7 @@ from retry import retry
 import logging
 from typing import List, Dict, Tuple, Any
 import json
+import time
 import concurrent.futures   
 from contexttimer import Timer  
 
@@ -454,10 +455,13 @@ if __name__ == '__main__':
         sys.exit()
 
     try:
-        with Timer() as t:
-            products_params = get_params_produtos(origem = origem)
-            logging.debug(products_params)
-            busca_OLX(products_params = products_params, paralelizar = True)
-            logging.info(f'Tempo total das buscas: {t.elapsed}s')
+        while True:
+            with Timer() as t:
+                hora_atual = time.localtime().tm_hour
+                products_params = get_params_produtos(origem = origem)
+                logging.debug(products_params)
+                busca_OLX(products_params = products_params, paralelizar = True)
+                logging.info(f'Tempo total das buscas: {t.elapsed}s')
+            time.sleep(28800)         
     except:
         logging.error(traceback.format_exc())
