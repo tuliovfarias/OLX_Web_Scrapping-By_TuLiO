@@ -5,7 +5,8 @@
         "user": "seu_email@gmail.com",
         "password":"codigo_gerado_em: https://security.google.com/settings/security/apppasswords",
         "from": "seu_email@gmail.com",
-        "to": "dest_e-mail@gmail.com"
+        "to": "dest_e-mail@gmail.com",
+        "ssl": true
     },
     "google-sheet": {
         "sheet_id": "id (pegar na url do sheet)"

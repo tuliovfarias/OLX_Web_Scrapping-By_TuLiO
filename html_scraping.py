@@ -25,6 +25,7 @@ from retry import retry
 import logging
 from typing import List, Dict, Tuple, Any
 import json
+import time
 import concurrent.futures   
 from contexttimer import Timer  
 
@@ -66,9 +67,10 @@ class BuscaProduto():
     def OLX(self):
         self.site='OLX'
 
-        dict_cidade = {'bh': 'belo-horizonte-e-regiao', 'sp': 'sao-paulo-e-regiao'}
+        # criar parametro para regiao ou bairro
+        dict_cidade = {'bh': 'belo-horizonte-e-regiao', 'sp': 'sao-paulo-e-regiao', 'rj' : 'rio-de-janeiro-e-regiao'}
         dict_ordenar_por = {'data' : '&sf=1'}
-        dict_estado = {'bh': 'mg', 'sp': 'sp'}
+        dict_estado = {'bh': 'mg', 'sp': 'sp', 'rj' : 'rj'}
 
         if self.cidade:
             if not self.estado:
@@ -112,7 +114,7 @@ class BuscaProduto():
             if not page_found_flag: break
         
     def criar_url_base(self, pesquisa:str) -> str:
-        url = 'https://'+ self.estado + 'olx.com.br/' + self.cidade + '?q=' + quote(pesquisa) + self.ordenar_por
+        url = 'https://www.olx.com.br/estado-' + self.estado.replace(".", "") + "/" + self.cidade + '?q=' + quote(pesquisa) + self.ordenar_por
         return url
            
     def OLX_pesquisa_pagina(self, url:str, pagina:int, pesquisa:str):
@@ -122,19 +124,20 @@ class BuscaProduto():
 
         page = requests.get(url, headers=self.headers)
         soup = BeautifulSoup(page.content, "lxml") #"html.parser"
-        produtos = soup.find('ul', {"id": ["ad-list"]})
+        produtos = soup.find('main', {"id": ["main-content"]})
 
         if produtos == None or len(produtos)== 0:
             logging.debug(f'\t\t\tNenhum resultado na página {str(pagina)}')
             return False
 
-        produtos = produtos.findAll('li',recursive=False)
+        produtos = produtos.findAll('div', recursive=False)
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             for produto in produtos:
                 produto:BeautifulSoup
 
                 try:
+                    produto = produto.next_element;                    
                     url_produto = produto.find("a")["href"]
                 except TypeError:
                     logging.debug(f"URL not found in: \n{produto}\n\n")
@@ -287,9 +290,13 @@ class BuscaProduto():
             user = dados["e-mail"]["user"]
             password = dados["e-mail"]["password"]
             email_de = dados["e-mail"]["from"]
+            ssl = dados["e-mail"]["ssl"]
             if not email_para: 
                 email_para = email_de
-        server = smtplib.SMTP_SSL(host, port)
+        if ssl:
+            server = smtplib.SMTP_SSL(host, port) 
+        else: 
+            server = smtplib.SMTP(host, port)
         server.login(user, password)
         email_msg = MIMEMultipart()
         email_msg['From'] = email_de
@@ -448,10 +455,13 @@ if __name__ == '__main__':
         sys.exit()
 
     try:
-        with Timer() as t:
-            products_params = get_params_produtos(origem = origem)
-            logging.debug(products_params)
-            busca_OLX(products_params = products_params, paralelizar = True)
-            logging.info(f'Tempo total das buscas: {t.elapsed}s')
+        while True:
+            with Timer() as t:
+                hora_atual = time.localtime().tm_hour
+                products_params = get_params_produtos(origem = origem)
+                logging.debug(products_params)
+                busca_OLX(products_params = products_params, paralelizar = True)
+                logging.info(f'Tempo total das buscas: {t.elapsed}s')
+            time.sleep(28800)         
     except:
         logging.error(traceback.format_exc())
