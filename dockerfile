@@ -19,4 +19,4 @@ COPY . /app
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Roda a aplicação
-CMD ["python", "html_scraping.py", "--local"]
+CMD ["python", "html_scraping.py"]

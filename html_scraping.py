@@ -28,6 +28,7 @@ import json
 import time
 import concurrent.futures   
 from contexttimer import Timer  
+from config import CRED_FILE, LOOP_SECONDS, BUSCA_FILE, GSHEET_CRED_FILE, ORIGEM_DEFAULT, PARALELIZAR
 
 from gsheet_API import GSheetAPI
 
@@ -400,7 +401,7 @@ def get_params_produtos(origem:str) -> List[Dict[str,str]]:
     
     return products_params
 
-def busca_OLX(products_params : List[Dict[str,str]], paralelizar = False):
+def busca_OLX(products_params : List[Dict[str,str]], paralelizar = True):
     logging.info(f'Iniciando busca...')
     if paralelizar:
         run_func_in_parallel_Process(busca_produto_e_envia_email, products_params)
@@ -414,17 +415,15 @@ def busca_OLX(products_params : List[Dict[str,str]], paralelizar = False):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) == 1 or sys.argv[1] == "--gsheet":
+    if len(sys.argv) == 1:
+        origem = ORIGEM_DEFAULT
+    elif sys.argv[1] == "--gsheet":
         origem = 'gsheet'
     elif sys.argv[1] == "--local":
         origem = 'local'
     else:
         logging.error(f"Argumentos inválidos: {sys.argv[1:]}")
         sys.exit()
-
-    CRED_FILE = 'cred.json' # arquivo com credenciais de e-mail e o id do da planilha do google
-    BUSCA_FILE = 'busca.xlsx' # planilha local com dados de produtos a serem buscados
-    GSHEET_CRED_FILE = 'gsheet_credentials.json' # arquivo com credenciais do google sheets (gerado em https://console.cloud.google.com/apis/credentials)
 
     source_dir = os.path.dirname(__file__)
     templates_dir = os.path.join(source_dir,'templates')
@@ -460,8 +459,11 @@ if __name__ == '__main__':
                 hora_atual = time.localtime().tm_hour
                 products_params = get_params_produtos(origem = origem)
                 logging.debug(products_params)
-                busca_OLX(products_params = products_params, paralelizar = True)
+                busca_OLX(products_params = products_params, paralelizar = PARALELIZAR)
                 logging.info(f'Tempo total das buscas: {t.elapsed}s')
-            time.sleep(28800)         
+            if LOOP_SECONDS:
+                time.sleep(LOOP_SECONDS)
+            else:
+                break      
     except:
         logging.error(traceback.format_exc())
