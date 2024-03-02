@@ -12,7 +12,7 @@ import locale
 from multiprocessing import Process
 import shutil
 import pandas as pd
-import requests
+# import requests
 from bs4 import BeautifulSoup
 from datetime import timedelta, datetime
 import re
@@ -29,12 +29,14 @@ import time
 import concurrent.futures   
 from contexttimer import Timer  
 from config import CRED_FILE, LOOP_SECONDS, BUSCA_FILE, GSHEET_CRED_FILE, ORIGEM_DEFAULT, PARALELIZAR
+import cloudscraper
 
 from gsheet_API import GSheetAPI
 
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+requests = cloudscraper.create_scraper()
 
 class BuscaProduto():
 
@@ -122,8 +124,11 @@ class BuscaProduto():
         url = url+'&o='+str(pagina)
 
         logging.info(f'\tPÁGINA {str(pagina)} ({pesquisa}) - {url}')
-
-        page = requests.get(url, headers=self.headers)
+        # page = requests.get(url, headers=self.headers)
+        page = requests.get(url)
+        if re.search("Sorry, you have been blocked",page.text):
+            logging.error(f"Page {url} returned: Sorry, you have been blocked")
+            sys.exit()
         soup = BeautifulSoup(page.content, "lxml") #"html.parser"
         produtos = soup.find('main', {"id": ["main-content"]})
 
@@ -155,7 +160,7 @@ class BuscaProduto():
                         for ignora in self.ignorar:
                             if titulo_anuncio.lower().find(ignora.lower()):
                                 continue      
-                except TypeError:
+                except (TypeError, IndexError):
                     logging.debug(f"Título não encontrado na página: \n{produto}\n\n")
 
                 executor.submit(self.append_prod_list, url_produto) # Executa paralelizado
@@ -201,7 +206,8 @@ class BuscaProduto():
     def OLX_pesquisa_prod(url_produto:str):
         try:
             headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'}
-            page_produto = requests.get(url_produto, headers=headers)
+            # page_produto = requests.get(url_produto, headers=headers)
+            page_produto = requests.get(url_produto)
             soup_produto = BeautifulSoup(page_produto.content, "lxml") # features="lxml"
 
             dados_str = str(soup_produto.find('script', {"id": "initial-data"}))
@@ -216,7 +222,7 @@ class BuscaProduto():
                 if datetime_str:
                     data_hora_post = datetime.fromtimestamp(int(datetime_str.group())) - timedelta(hours=3)
                 else:
-                    logging.error(f"Não encontrou a data de publicação do produto: {url_produto}/n{dados_str}/n/n")
+                    logging.error(f"Não encontrou a data de publicação do produto: {url_produto} - {dados_str}")
                     return
             logging.debug(f'Data/hora de publicação: {data_hora_post}')
 
